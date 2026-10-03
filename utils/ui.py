@@ -9,9 +9,8 @@ SEV_COLORS = {"Critical": "#ef4444", "High": "#f97316", "Medium": "#eab308", "Lo
 
 
 def inject_css():
-    st.markdown("""
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<style>
+    css = """
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 :root{--bg:#070b14;--card:#0f1626;--card2:#131c30;--line:rgba(148,163,184,.13);--txt:#e8edf6;--mut:#8493ab;--acc:#6366f1;--red:#ef4444}
 html,body,.stApp,[class*="css"]{font-family:'Inter',sans-serif}
 .stApp{background:radial-gradient(900px 400px at 90% -5%,rgba(99,102,241,.14),transparent),
@@ -98,7 +97,11 @@ div[data-testid="stMetricValue"]{font-weight:800;letter-spacing:-.03em}
 [data-testid="stTabs"] button{font-weight:600;border-radius:8px 8px 0 0}
 [data-testid="stVerticalBlockBorderWrapper"]{border-radius:14px}
 .stDataFrame{border:1px solid var(--line);border-radius:12px;overflow:hidden}
-</style>""", unsafe_allow_html=True)
+"""
+    # Streamlit's markdown parser ends an HTML block at any blank line, which makes the
+    # rest of the CSS render as visible text. Strip blank lines before injecting.
+    css = "\n".join(line for line in css.splitlines() if line.strip())
+    st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
 
 def page_hero(kicker, title, subtitle):
