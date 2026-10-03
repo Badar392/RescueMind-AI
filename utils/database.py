@@ -28,7 +28,7 @@ def init_db():
     from utils.models import (
         User, EmergencyReport, Incident, IncidentLocation,
         IncidentEvidence, Resource, ResourceAssignment,
-        AgentExecution, IncidentHistory, AuditLog, EventRecord
+        AgentExecution, IncidentHistory, AuditLog, EventRecord, ResourceOptimizationRun
     )
     Base.metadata.create_all(engine)
 
