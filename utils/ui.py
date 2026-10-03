@@ -42,13 +42,13 @@ html,body,.stApp,[class*="css"]{font-family:'Inter',sans-serif}
 @keyframes pulse{50%{opacity:.4}}
 
 /* Hero */
-.hero{position:relative;overflow:hidden;padding:26px 30px;margin-bottom:22px;border-radius:20px;
+.hero{position:relative;overflow:hidden;padding:22px 28px;margin-bottom:20px;border-radius:20px;
  border:1px solid var(--line);background:linear-gradient(120deg,#4f46e5 0%,#3b5bdb 50%,#d6336c 100%)}
 .hero:before{content:"";position:absolute;right:-60px;top:-90px;width:300px;height:300px;border-radius:50%;
  background:radial-gradient(circle,rgba(255,255,255,.28),transparent 70%)}
 .hero-kicker{color:#e0e7ff;font-size:.68rem;font-weight:800;letter-spacing:.16em;text-transform:uppercase}
-.hero h1{margin:6px 0 4px;font-size:1.9rem;font-weight:800;letter-spacing:-.04em;color:#fff;position:relative}
-.hero p{margin:0;color:#eef2ff;font-size:.92rem;max-width:760px;position:relative}
+.hero h1{margin:6px 0 4px;font-size:1.55rem;font-weight:700;letter-spacing:-.03em;color:#fff;position:relative}
+.hero p{margin:0;color:#eef2ff;font-size:.86rem;max-width:760px;position:relative}
 
 /* KPI */
 .kpi{position:relative;padding:18px;border-radius:16px;border:1px solid var(--line);
@@ -59,7 +59,7 @@ html,body,.stApp,[class*="css"]{font-family:'Inter',sans-serif}
 .kpi-label{color:var(--mut);font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.07em}
 .kpi-icon{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:16px;
  background:color-mix(in srgb,var(--c) 16%,transparent);color:var(--c)}
-.kpi-value{font-size:2.1rem;font-weight:800;color:#fff;letter-spacing:-.04em;margin-top:8px}
+.kpi-value{font-size:1.7rem;font-weight:700;color:#fff;letter-spacing:-.03em;margin-top:6px}
 .kpi-hint{color:var(--mut);font-size:.72rem}
 
 /* Panels */
@@ -86,7 +86,9 @@ html,body,.stApp,[class*="css"]{font-family:'Inter',sans-serif}
 div[data-testid="stMetric"]{padding:16px;border-radius:16px;border:1px solid var(--line);
  background:linear-gradient(160deg,var(--card2),var(--card))}
 div[data-testid="stMetricLabel"] p{color:var(--mut);font-size:.75rem;text-transform:uppercase;letter-spacing:.06em}
-div[data-testid="stMetricValue"]{font-weight:800;letter-spacing:-.03em}
+div[data-testid="stMetricValue"]{font-weight:700;letter-spacing:-.02em;font-size:1.45rem!important;line-height:1.3}
+[data-testid="stMetricValue"] *{font-size:1.45rem!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;line-height:1.3}
+.panel h1,.panel h2,.panel h3{font-size:1.2rem!important;font-weight:700;letter-spacing:-.02em}
 .stButton>button,.stFormSubmitButton>button{border-radius:10px;font-weight:700;border:1px solid var(--line);transition:.15s}
 .stButton>button[kind="primary"],.stFormSubmitButton>button{background:linear-gradient(90deg,#ff5d73,#8b93ff);border:0;color:#fff}
 .stButton>button:hover,.stFormSubmitButton>button:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(99,102,241,.3)}
