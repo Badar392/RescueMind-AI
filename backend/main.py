@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import desc
 
 from utils.database import SessionLocal, init_db
-from utils.models import Incident, Resource
+from utils.models import Incident, Resource, AgentExecution
 from utils.seed import seed_database
 from utils.services import change_status, create_incident, propose_resource
 from utils.agents import orchestrate
@@ -169,6 +169,39 @@ def get_incident(incident_id: int):
         if not incident:
             raise HTTPException(status_code=404, detail="Incident not found.")
         return _incident_dict(incident)
+    finally:
+        db.close()
+
+
+@app.get("/api/v1/incidents/{incident_id}/agents")
+def get_agent_timeline(incident_id: int):
+    """Return the explainable agent execution timeline for an incident."""
+    db = SessionLocal()
+    try:
+        incident = db.get(Incident, incident_id)
+        if not incident:
+            raise HTTPException(status_code=404, detail="Incident not found.")
+        executions = (
+            db.query(AgentExecution)
+            .filter(AgentExecution.incident_id == incident_id)
+            .order_by(AgentExecution.id.asc())
+            .all()
+        )
+        return {
+            "incident_id": incident_id,
+            "incident_code": incident.incident_code,
+            "executions": [
+                {
+                    "id": execution.id,
+                    "agent": execution.agent_name,
+                    "status": execution.status,
+                    "duration_ms": execution.duration_ms,
+                    "output": execution.output_json,
+                    "created_at": execution.created_at,
+                }
+                for execution in executions
+            ],
+        }
     finally:
         db.close()
 
