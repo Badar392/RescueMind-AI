@@ -314,6 +314,7 @@ def sidebar_navigation():
                 "Incidents",
                 "Resources",
                 "AI Activity",
+                "Live Monitoring",
                 "Audit Trail",
             ],
             label_visibility="collapsed",
