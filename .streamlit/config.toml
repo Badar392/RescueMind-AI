@@ -2,8 +2,11 @@
 base = "dark"
 primaryColor = "#8b93ff"
 backgroundColor = "#142041"
-secondaryBackgroundColor = "#1e2d57"
+secondaryBackgroundColor = "#3a4fa3"
 textColor = "#f4f7ff"
+borderColor = "#8f9bf0"
+showWidgetBorder = true
+baseRadius = "large"
 font = "sans serif"
 baseFontSize = 15
 
