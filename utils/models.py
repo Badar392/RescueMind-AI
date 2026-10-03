@@ -120,6 +120,13 @@ class AuditLog(Base):
 
 Index("ix_incident_coordinates", Incident.latitude, Incident.longitude)
 
+class ResourceOptimizationRun(Base):
+    __tablename__ = "resource_optimization_runs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    trigger: Mapped[str] = mapped_column(String(80))
+    summary: Mapped[dict | None] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
 class EventRecord(Base):
     """Durable event envelope used by the v2.2 event-driven monitor."""
     __tablename__ = "event_records"
