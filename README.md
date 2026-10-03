@@ -64,7 +64,7 @@ uvicorn backend.main:app --reload
 
 FastAPI docs: `http://127.0.0.1:8000/docs`
 
-### Test v2.2
+### Test v2.3
 
 1. Submit an emergency report.
 2. Open **Live Monitoring** in Streamlit.
@@ -75,3 +75,15 @@ FastAPI docs: `http://127.0.0.1:8000/docs`
 
 ### Important
 The event worker is intentionally in-process for a student/demo deployment. For production, replace it with Redis Streams, RabbitMQ, Kafka, or another durable message broker and run workers as separate services.
+
+
+## v2.3 — Advanced Resource Optimization
+
+v2.3 adds an explainable resource optimizer that considers capability, availability, capacity, geospatial proximity, incident severity, and competition between active incidents. Resource status changes trigger the event-driven monitoring layer so recommendations can be recalculated. The optimizer only produces recommendations; dispatch still requires coordinator approval.
+
+### New endpoints
+- `GET /api/v1/resources/optimization?incident_id=<id>`
+- `POST /api/v1/resources/{resource_id}/status?status=Available`
+
+### New component
+- `utils/resource_optimizer.py` — explainable multi-incident resource allocation logic.
