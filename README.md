@@ -147,3 +147,15 @@ GROQ_MODEL = "openai/gpt-oss-120b"
 ```
 
 Never commit real API keys.
+
+## Version 2.1 — Multimodal + Geospatial Intelligence
+
+This release adds:
+- optional voice intake with Groq Whisper
+- optional emergency-scene image analysis with Groq Vision
+- real text-location geocoding through OpenStreetMap Nominatim
+- geospatial resource distance scoring
+- multimodal evidence stored in the shared incident context
+- `/api/v1/reports/voice` and `/api/v1/location/geocode` endpoints
+
+Set `GEOCODING_ENABLED=false` if external geocoding is not desired. Coordinates returned by geocoding are always unverified until a coordinator confirms them.
