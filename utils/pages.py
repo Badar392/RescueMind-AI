@@ -514,3 +514,36 @@ def audit_page(db):
         use_container_width=True,
         hide_index=True,
     )
+
+
+def live_monitoring_page(db):
+    """Live event stream + continuous monitoring decisions for v2.2."""
+    from utils.models import EventRecord
+    from sqlalchemy import desc
+    page_hero(
+        "V2.2 / EVENT-DRIVEN OPERATIONS",
+        "Live Monitoring",
+        "Continuous incident monitoring, event-driven re-analysis, escalation signals, and auditable agent activity.",
+    )
+    events = db.query(EventRecord).order_by(desc(EventRecord.id)).limit(80).all()
+    queued = sum(e.status == "queued" for e in events)
+    completed = sum(e.status == "completed" for e in events)
+    failed = sum(e.status == "failed" for e in events)
+    a, b, c, d = st.columns(4)
+    a.metric("Stream events", len(events))
+    b.metric("Queued", queued)
+    c.metric("Completed", completed)
+    d.metric("Failed", failed)
+
+    st.markdown('<div class="safe-notice"><b>v2.2 control rule:</b> events can trigger analysis and recommendations, but never autonomous field dispatch. A coordinator remains the approval authority.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">EVENT STREAM</div>', unsafe_allow_html=True)
+    if not events:
+        st.info("No events have been emitted yet. Submit an emergency report to start the stream.")
+        return
+    for event in events[:30]:
+        with st.expander(f"#{event.id} · {event.event_type} · {event.status} · incident {event.incident_id or 'system'}"):
+            st.json({
+                "payload": event.payload or {},
+                "error": event.error,
+                "created_at": str(event.created_at),
+            })
