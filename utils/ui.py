@@ -98,7 +98,6 @@ div[data-testid="stMetric"]{padding:16px;border-radius:16px;border:1px solid var
 [data-testid="stTextInput"] input,[data-testid="stTextArea"] textarea,[data-testid="stNumberInput"] input{color:#fff!important}
 [data-testid="stTextInput"] input::placeholder,[data-testid="stTextArea"] textarea::placeholder{color:#b9c5ee!important;opacity:.85}
 [data-testid="stFileUploaderDropzone"]{background:rgba(139,147,255,.16)!important;border:1.5px dashed #9aa3ff!important;border-radius:14px}
-[data-testid="stAudioInput"]{border:1.5px solid #8b93ff!important;border-radius:14px}
 [data-testid="stExpander"]{border:1px solid var(--line);border-radius:12px;background:var(--card)}
 [data-testid="stTabs"] [role="tablist"]{gap:14px;border-bottom:1px solid var(--line);padding-bottom:2px}
 [data-testid="stTabs"] button[role="tab"]{font-weight:600;border-radius:10px 10px 0 0;padding:10px 18px;margin-right:8px;transition:.15s}
