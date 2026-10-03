@@ -26,6 +26,11 @@ The Streamlit front end has a new design system and a rebuilt Command Center.
 - Charts use Plotly (`plotly>=6`); the map uses `px.scatter_map` with the `carto-darkmatter` style (no API token needed).
 - Backend logic (agents, database, event bus, API) is unchanged.
 
+### Voice reports (troubleshooting)
+Voice transcription uses Groq Whisper and requires `GROQ_API_KEY` (in `.env` or `.streamlit/secrets.toml`).
+If it is missing or the call fails, the report page now shows the exact reason and asks you to type the
+description instead. Typed reports always work without any API key.
+
 ---
 
 ## Backend overview (v2.2)
