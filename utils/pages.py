@@ -10,70 +10,101 @@ from utils.services import (
 )
 from utils.agents import orchestrate, resource_agent
 from utils.data import load_demo_dataset
+from utils.ui import page_hero, severity_badge, status_badge
 
 STATUSES = ["Pending", "Under Review", "Approved", "Assigned", "In Progress", "Resolved"]
 
+
 def dashboard_page(db):
-    st.markdown(
-        '<div class="hero"><h1>🚨 Emergency Command Center</h1>'
-        '<p>AI-assisted incident intelligence with human-controlled decisions.</p></div>',
-        unsafe_allow_html=True,
+    page_hero(
+        "OPERATIONS / COMMAND CENTER",
+        "Emergency Command Center",
+        "AI-assisted incident intelligence with human-controlled operational decisions.",
     )
 
     incidents = db.query(Incident).order_by(desc(Incident.created_at)).all()
+    resources = db.query(Resource).all()
+
     metrics = {
-        "Total": len(incidents),
-        "Pending": sum(i.status in ("Pending", "Under Review") for i in incidents),
+        "Total Incidents": len(incidents),
+        "Pending Review": sum(i.status in ("Pending", "Under Review") for i in incidents),
         "Urgent": sum(i.severity in ("High", "Critical") for i in incidents),
-        "Assigned": sum(i.status in ("Assigned", "In Progress") for i in incidents),
+        "Active": sum(i.status in ("Assigned", "In Progress") for i in incidents),
         "Resolved": sum(i.status == "Resolved" for i in incidents),
     }
 
-    cols = st.columns(5)
+    cols = st.columns(5, gap="small")
     for col, (label, value) in zip(cols, metrics.items()):
         col.metric(label, value)
 
-    st.divider()
-    left, right = st.columns([1.5, 1])
+    st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+    left, right = st.columns([1.55, 1], gap="large")
 
     with left:
-        st.subheader("Incident Map")
+        st.markdown('<div class="section-title">LIVE INCIDENT MAP</div>', unsafe_allow_html=True)
         rows = [
             {"lat": i.latitude, "lon": i.longitude}
             for i in incidents
             if i.latitude is not None and i.longitude is not None
         ]
         if rows:
-            st.map(pd.DataFrame(rows))
+            st.map(pd.DataFrame(rows), height=410)
         else:
             st.info("No coordinates available. RescueMind AI never invents coordinates.")
 
     with right:
-        st.subheader("Recent Incidents")
-        for incident in incidents[:7]:
-            icon = {
-                "Critical": "🔴",
-                "High": "🟠",
-                "Medium": "🟡",
-                "Low": "🟢",
-            }.get(incident.severity, "⚪")
-            st.write(f"{icon} **{incident.incident_code}**")
-            st.caption(f"{incident.category} · {incident.status} · {incident.severity}")
+        st.markdown('<div class="section-title">RECENT INCIDENTS</div>', unsafe_allow_html=True)
+        if incidents:
+            for incident in incidents[:7]:
+                st.markdown(
+                    f"""
+                    <div class="incident-card">
+                        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;">
+                            <span class="incident-code">{incident.incident_code}</span>
+                            {severity_badge(incident.severity)}
+                        </div>
+                        <div class="incident-meta">{incident.category} · {incident.status}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+        else:
+            st.info("No incidents have been reported yet.")
 
-    st.divider()
-    st.markdown(
-        '<div class="notice">⚠️ <b>Human-in-the-loop:</b> AI output is an unverified '
-        'recommendation. Coordinators must review before operational action.</div>',
-        unsafe_allow_html=True,
-    )
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+    st.markdown('<div class="section-title">OPERATIONAL SNAPSHOT</div>', unsafe_allow_html=True)
+    a, b = st.columns(2, gap="large")
+    with a:
+        st.markdown(
+            f"""
+            <div class="panel">
+                <div class="mini-label">Resource readiness</div>
+                <h3 style="margin:5px 0;color:#f8fafc;">{sum(r.status == 'Available' for r in resources)} available</h3>
+                <div style="color:#8194aa;font-size:.76rem;">of {len(resources)} simulated resources currently tracked</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with b:
+        st.markdown(
+            """
+            <div class="safe-notice">
+                <b>Human-in-the-loop:</b> AI outputs are unverified recommendations.
+                Coordinators must review supporting information before operational action.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
 
 def report_page(db):
-    st.markdown(
-        '<div class="hero"><h1>📣 Report Emergency</h1>'
-        '<p>Submit a simulated emergency report for AI-assisted triage.</p></div>',
-        unsafe_allow_html=True,
+    page_hero(
+        "INTAKE / NEW REPORT",
+        "Report Emergency",
+        "Submit a simulated emergency report for AI-assisted triage and coordination.",
     )
 
+    st.markdown('<div class="section-title">INCIDENT INFORMATION</div>', unsafe_allow_html=True)
     with st.form("report"):
         category = st.selectbox(
             "Emergency category",
@@ -84,12 +115,15 @@ def report_page(db):
             height=160,
             placeholder="Example: Several people are trapped in rising flood water near the bridge...",
         )
-        location = st.text_input(
-            "Location or coordinates",
-            placeholder="Example: Lahore or 31.5204, 74.3587",
-        )
-        image = st.file_uploader("Optional evidence image", type=["png", "jpg", "jpeg"])
-        submitted = st.form_submit_button("🚨 Submit Emergency", use_container_width=True)
+        c1, c2 = st.columns([1.3, 1], gap="large")
+        with c1:
+            location = st.text_input(
+                "Location or coordinates",
+                placeholder="Example: Lahore or 31.5204, 74.3587",
+            )
+        with c2:
+            image = st.file_uploader("Optional evidence image", type=["png", "jpg", "jpeg"])
+        submitted = st.form_submit_button("🚨 Submit Emergency Report", use_container_width=True)
 
     if submitted:
         if len(description.strip()) < 10:
@@ -115,32 +149,47 @@ def report_page(db):
         db.commit()
 
         st.success(
-            f"Report **{report.report_code}** received. "
-            f"Incident **{incident.incident_code}** created."
+            f"Report **{report.report_code}** received. Incident **{incident.incident_code}** created."
         )
 
-        a, b, c = st.columns(3)
-        a.metric("Category", incident.category)
+        a, b, c = st.columns(3, gap="small")
+        a.metric("Detected Category", incident.category)
         b.metric("Severity", incident.severity)
-        c.metric("Score", incident.severity_score)
+        c.metric("Severity Score", incident.severity_score)
 
-        st.subheader("AI Explainability")
-        st.write("**Detected:**", result["explanation"].get("detected", []))
-        st.write("**Missing:**", result["explanation"].get("missing", []))
-        st.write("**Reasoning:**", result["explanation"].get("reasoning"))
+        st.markdown("<div class='section-title'>AI EXPLAINABILITY</div>", unsafe_allow_html=True)
+        x, y = st.columns([1, 1], gap="large")
+        explanation = result["explanation"]
+        with x:
+            st.markdown('<div class="panel">', unsafe_allow_html=True)
+            st.markdown("**Detected signals**")
+            detected = explanation.get("detected", [])
+            st.write(" · ".join(map(str, detected)) if detected else "No explicit signals returned.")
+            st.markdown("**Missing information**")
+            missing = explanation.get("missing", [])
+            st.write(" · ".join(map(str, missing)) if missing else "No missing information reported.")
+            st.markdown('</div>', unsafe_allow_html=True)
+        with y:
+            st.markdown('<div class="panel">', unsafe_allow_html=True)
+            st.markdown("**Reasoning**")
+            st.write(explanation.get("reasoning", "Not available"))
+            st.caption(f"Provider: {explanation.get('provider', 'Unknown')}")
+            st.markdown('</div>', unsafe_allow_html=True)
+
         st.warning("Human verification is required before operational action.")
 
         if result["duplicates"]:
-            st.subheader("Potential Duplicate Reports")
-            st.dataframe(pd.DataFrame(result["duplicates"]), use_container_width=True)
+            st.markdown('<div class="section-title">POTENTIAL DUPLICATE REPORTS</div>', unsafe_allow_html=True)
+            st.dataframe(pd.DataFrame(result["duplicates"]), use_container_width=True, hide_index=True)
         else:
             st.success("No potential duplicate found above the similarity threshold.")
 
+
 def incidents_page(db):
-    st.markdown(
-        '<div class="hero"><h1>📋 Incident Management</h1>'
-        '<p>Review findings and make human-controlled operational decisions.</p></div>',
-        unsafe_allow_html=True,
+    page_hero(
+        "OPERATIONS / INCIDENTS",
+        "Incident Management",
+        "Review AI findings and make human-controlled operational decisions.",
     )
 
     incidents = db.query(Incident).order_by(Incident.id.desc()).all()
@@ -154,23 +203,50 @@ def incidents_page(db):
         format_func=lambda x: f"{x.incident_code} — {x.category} — {x.severity}",
     )
 
-    a, b, c, d = st.columns(4)
+    st.markdown(
+        f"""
+        <div class="panel" style="margin:10px 0 18px;">
+            <div class="mini-label">SELECTED INCIDENT</div>
+            <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;margin-top:5px;">
+                <div>
+                    <div style="font-size:1.1rem;font-weight:800;color:#f8fafc;">{selected.incident_code}</div>
+                    <div style="font-size:.76rem;color:#8194aa;margin-top:3px;">{selected.category} · {selected.location or 'Location not verified'}</div>
+                </div>
+                <div>{severity_badge(selected.severity)} &nbsp; {status_badge(selected.status)}</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    a, b, c, d = st.columns(4, gap="small")
     a.metric("Category", selected.category)
     b.metric("Severity", selected.severity)
     c.metric("Score", selected.severity_score)
     d.metric("Status", selected.status)
 
-    st.write(selected.description)
+    with st.expander("View original emergency description", expanded=True):
+        st.write(selected.description)
 
-    tab1, tab2, tab3 = st.tabs(["AI Explanation", "Resources", "Coordinator Action"])
+    tab1, tab2, tab3 = st.tabs(["🧠 AI Explanation", "🚑 Resources", "🛡 Coordinator Action"])
 
     with tab1:
         explanation = selected.ai_explanation or {}
-        st.write("**Detected:**", explanation.get("detected", []))
-        st.write("**Missing:**", explanation.get("missing", []))
-        st.write("**Reasoning:**", explanation.get("reasoning", "Not available"))
-        st.caption(f"Provider: {explanation.get('provider', 'Unknown')}")
-        st.warning("Human verification required.")
+        x, y = st.columns(2, gap="large")
+        with x:
+            st.markdown('<div class="panel">', unsafe_allow_html=True)
+            st.markdown("**Detected**")
+            st.write(explanation.get("detected", []) or "No signals available")
+            st.markdown("**Missing**")
+            st.write(explanation.get("missing", []) or "None reported")
+            st.markdown('</div>', unsafe_allow_html=True)
+        with y:
+            st.markdown('<div class="panel">', unsafe_allow_html=True)
+            st.markdown("**Reasoning**")
+            st.write(explanation.get("reasoning", "Not available"))
+            st.caption(f"Provider: {explanation.get('provider', 'Unknown')}")
+            st.markdown('</div>', unsafe_allow_html=True)
+        st.warning("Human verification required before operational action.")
 
     with tab2:
         resources = db.query(Resource).all()
@@ -180,22 +256,39 @@ def incidents_page(db):
             st.info("No matching available resources.")
         else:
             for rec in recommendations:
-                st.write(f"**{rec['name']}** · {rec['type']}")
-                st.caption(rec["reason"])
-                if st.button(
-                    f"Propose {rec['resource_code']}",
-                    key=f"resource_{selected.id}_{rec['resource_id']}",
-                ):
-                    propose_resource(
-                        db,
-                        selected.id,
-                        rec["resource_id"],
-                        rec["reason"],
+                r1, r2 = st.columns([3, 1], gap="large")
+                with r1:
+                    st.markdown(
+                        f"""
+                        <div class="incident-card">
+                            <div class="incident-code">{rec['name']}</div>
+                            <div class="incident-meta">{rec['type']} · {rec['resource_code']}</div>
+                            <div style="color:#a9b8c9;font-size:.78rem;margin-top:7px;">{rec['reason']}</div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
                     )
-                    db.commit()
-                    st.success("Resource proposal recorded. No automatic dispatch occurred.")
+                with r2:
+                    st.write("")
+                    if st.button(
+                        f"Propose {rec['resource_code']}",
+                        key=f"resource_{selected.id}_{rec['resource_id']}",
+                        use_container_width=True,
+                    ):
+                        propose_resource(
+                            db,
+                            selected.id,
+                            rec["resource_id"],
+                            rec["reason"],
+                        )
+                        db.commit()
+                        st.success("Resource proposal recorded. No automatic dispatch occurred.")
 
     with tab3:
+        st.markdown(
+            '<div class="notice">Review the AI recommendation and supporting information before moving an incident into an operational state.</div>',
+            unsafe_allow_html=True,
+        )
         approved = st.checkbox(
             "I reviewed the AI recommendation and supporting information.",
             key=f"review_{selected.id}",
@@ -203,12 +296,11 @@ def incidents_page(db):
         new_status = st.selectbox(
             "Status",
             STATUSES,
-            index=STATUSES.index(selected.status)
-            if selected.status in STATUSES else 0,
+            index=STATUSES.index(selected.status) if selected.status in STATUSES else 0,
             key=f"status_{selected.id}",
         )
 
-        if st.button("Save Coordinator Decision", type="primary"):
+        if st.button("Save Coordinator Decision", type="primary", use_container_width=True):
             if new_status in {"Approved", "Assigned", "In Progress", "Resolved"} and not approved:
                 st.error("Review confirmation is required.")
             else:
@@ -223,14 +315,24 @@ def incidents_page(db):
                 st.success("Incident updated.")
                 st.rerun()
 
+
 def resources_page(db):
-    st.markdown(
-        '<div class="hero"><h1>🚑 Resource Management</h1>'
-        '<p>Simulated rescue resources available for coordinator review.</p></div>',
-        unsafe_allow_html=True,
+    page_hero(
+        "OPERATIONS / RESOURCES",
+        "Resource Management",
+        "Track simulated rescue resources and review availability for coordinator decisions.",
     )
 
     resources = db.query(Resource).order_by(Resource.id).all()
+    available = sum(r.status == "Available" for r in resources)
+    busy = len(resources) - available
+
+    a, b, c = st.columns(3, gap="small")
+    a.metric("Total Resources", len(resources))
+    b.metric("Available", available)
+    c.metric("Unavailable / Busy", busy)
+
+    st.markdown('<div class="section-title">RESOURCE INVENTORY</div>', unsafe_allow_html=True)
     st.dataframe(
         pd.DataFrame([
             {
@@ -247,7 +349,7 @@ def resources_page(db):
         hide_index=True,
     )
 
-    with st.expander("Add simulated resource"):
+    with st.expander("＋ Add simulated resource"):
         with st.form("add_resource"):
             name = st.text_input("Name")
             resource_type = st.selectbox(
@@ -256,7 +358,7 @@ def resources_page(db):
             )
             capacity = st.number_input("Capacity", min_value=1, max_value=1000, value=1)
             location = st.text_input("Location")
-            submit = st.form_submit_button("Add Resource")
+            submit = st.form_submit_button("Add Resource", use_container_width=True)
 
         if submit:
             if not name or not location:
@@ -275,11 +377,12 @@ def resources_page(db):
                 st.success("Resource added.")
                 st.rerun()
 
+
 def ai_activity_page(db):
-    st.markdown(
-        '<div class="hero"><h1>🤖 AI Agent Activity</h1>'
-        '<p>Transparent execution history for specialized agents.</p></div>',
-        unsafe_allow_html=True,
+    page_hero(
+        "TRANSPARENCY / AI ACTIVITY",
+        "AI Agent Activity",
+        "Transparent execution history for the specialized RescueMind analysis agents.",
     )
 
     executions = (
@@ -289,17 +392,35 @@ def ai_activity_page(db):
         .all()
     )
 
+    if not executions:
+        st.info("No agent executions have been recorded yet.")
+        return
+
+    success_count = sum(x.status == "success" for x in executions)
+    failure_count = len(executions) - success_count
+    a, b, c = st.columns(3, gap="small")
+    a.metric("Executions", len(executions))
+    b.metric("Successful", success_count)
+    c.metric("Other Status", failure_count)
+
+    st.markdown('<div class="section-title">EXECUTION LOG</div>', unsafe_allow_html=True)
     for execution in executions:
+        status_class = "badge-green" if execution.status == "success" else "badge-orange"
         with st.expander(
-            f"{execution.agent_name} · {execution.status} · {execution.duration_ms or 0} ms"
+            f"{execution.agent_name}  ·  {execution.status}  ·  {execution.duration_ms or 0} ms"
         ):
+            st.markdown(
+                f'<span class="badge {status_class}">{execution.status}</span>',
+                unsafe_allow_html=True,
+            )
             st.json(execution.output_json or {})
 
+
 def audit_page(db):
-    st.markdown(
-        '<div class="hero"><h1>📝 Audit Trail</h1>'
-        '<p>Traceable records of coordinator and system actions.</p></div>',
-        unsafe_allow_html=True,
+    page_hero(
+        "TRANSPARENCY / AUDIT",
+        "Audit Trail",
+        "Traceable records of coordinator and system actions across the incident workflow.",
     )
 
     logs = db.query(AuditLog).order_by(AuditLog.id.desc()).limit(200).all()
@@ -308,6 +429,7 @@ def audit_page(db):
         st.info("No audit events yet.")
         return
 
+    st.markdown('<div class="section-title">SYSTEM ACTIVITY</div>', unsafe_allow_html=True)
     st.dataframe(
         pd.DataFrame([
             {
