@@ -9,25 +9,34 @@ It processes simulated emergency reports, extracts structured information, asses
 ## 1. Architecture
 
 ```text
-Streamlit UI
-     │
-     ▼
-utils/pages.py
-     │
-     ▼
-utils/agents.py ──────► utils/ai.py ──────► Groq / GPT-OSS
-     │
-     ├── Intake
-     ├── Location
-     ├── Severity
-     ├── Duplicate Detection
-     └── Resource Matching
-     │
-     ▼
-SQLAlchemy
-     │
-     ├── SQLite (local)
-     └── PostgreSQL (production)
+Citizen / Web / Mobile
+        │
+        ▼
+FastAPI Backend (backend/main.py)
+        │
+        ▼
+AI Orchestrator (utils/agents.py)
+   ┌────┼──────────────┬───────────────┐
+   ▼    ▼              ▼               ▼
+Report Location    Duplicate       Severity
+Agent  Agent       Agent            Agent
+   │      │           │               │
+   └──────┴───────────┴───────────────┘
+                    │
+                    ▼
+             Incident Database
+                    │
+                    ▼
+           Resource Matching Agent
+                    │
+                    ▼
+           Response Planning Agent
+                    │
+                    ▼
+         Streamlit Human Approval UI
+                    │
+                    ▼
+        Status + Resource Tracking
 ```
 
 The application intentionally uses deterministic Python logic for structured emergency triage and matching. The LLM is used for language-level explanation rather than every workflow step.
@@ -36,7 +45,10 @@ The application intentionally uses deterministic Python logic for structured eme
 
 ```text
 RescueMind-AI/
-├── app.py
+├── app.py                 # Streamlit human approval dashboard
+├── backend/
+│   ├── __init__.py
+│   └── main.py             # FastAPI backend / API boundary
 ├── requirements.txt
 ├── README.md
 ├── .gitignore
@@ -246,3 +258,38 @@ Before using it outside a hackathon:
 - conduct security and privacy review.
 
 The prototype must remain clearly separated from real emergency dispatch systems.
+
+
+## 6. Run the new FastAPI backend
+
+Keep Streamlit for the coordinator dashboard:
+
+```powershell
+streamlit run app.py
+```
+
+In a second terminal, start the API:
+
+```powershell
+uvicorn backend.main:app --reload
+```
+
+API health check:
+
+```text
+GET http://127.0.0.1:8000/api/v1/health
+```
+
+Interactive API documentation is available at `/docs`.
+
+### Main API endpoints
+
+- `POST /api/v1/reports` — citizen report with optional image upload
+- `POST /api/v1/reports/json` — JSON report for web/mobile clients
+- `GET /api/v1/incidents` — incident list
+- `GET /api/v1/incidents/{id}` — incident details
+- `POST /api/v1/incidents/{id}/status` — human coordinator status decision
+- `GET /api/v1/resources` — resource inventory
+- `POST /api/v1/incidents/{id}/resource-proposals` — propose a resource
+
+The API never performs automatic emergency dispatch. Resource proposals and operational status changes remain human-controlled.
