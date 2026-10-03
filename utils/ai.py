@@ -1,9 +1,21 @@
+"""Optional LLM explanation/enrichment layer.
+
+The backend can run without Streamlit or a configured LLM. When no provider is
+available, transparent deterministic explanations are returned instead.
+"""
 import json
-import streamlit as st
+from functools import lru_cache
+
+try:
+    import streamlit as st
+except ImportError:  # FastAPI/backend execution
+    st = None
+
 from utils.config import settings
 
-@st.cache_resource(show_spinner=False)
-def get_groq_client(api_key):
+
+@lru_cache(maxsize=4)
+def _get_groq_client_cached(api_key):
     if not api_key:
         return None
     try:
@@ -11,6 +23,19 @@ def get_groq_client(api_key):
         return Groq(api_key=api_key)
     except Exception:
         return None
+
+
+def get_groq_client(api_key):
+    if st is not None:
+        try:
+            @st.cache_resource(show_spinner=False)
+            def _client(key):
+                return _get_groq_client_cached(key)
+            return _client(api_key)
+        except Exception:
+            pass
+    return _get_groq_client_cached(api_key)
+
 
 def explain_incident(category, description, severity, intake):
     client = get_groq_client(settings.groq_api_key)
@@ -34,7 +59,7 @@ summary, detected, missing, reasoning, human_verification.
 Never claim the report is verified.
 Never dispatch resources.
 Never give medical treatment instructions.
-Keep the explanation concise.
+Keep the explanation concise and evidence-based.
 
 Category: {category}
 Description: {description}
