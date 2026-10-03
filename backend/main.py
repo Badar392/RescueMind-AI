@@ -8,6 +8,7 @@ from typing import Optional
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import desc
+from datetime import datetime, timezone
 
 from utils.database import SessionLocal, init_db
 from utils.models import Incident, Resource, AgentExecution
@@ -16,10 +17,13 @@ from utils.services import change_status, create_incident, propose_resource
 from utils.agents import orchestrate
 from utils.ai import transcribe_audio
 from utils.location_service import extract_location
+from utils.event_bus import start_worker, publish_event
+from utils.monitoring import process_event
+from utils.models import EventRecord
 
 app = FastAPI(
     title="RescueMind AI API",
-    version="1.0.0",
+    version="2.2.0",
     description="Emergency intelligence and human-controlled resource coordination API.",
 )
 
@@ -28,6 +32,7 @@ app = FastAPI(
 def startup() -> None:
     init_db()
     seed_database()
+    start_worker(process_event)
 
 
 class ReportRequest(BaseModel):
@@ -84,6 +89,7 @@ def _process_report(db, description: str, category: str, location: Optional[str]
     result = orchestrate(db, incident, category, image_bytes=image_bytes, image_name=image_name)
     db.commit()
     db.refresh(incident)
+    publish_event("incident.created", incident.id, {"source": "citizen_report"})
     return incident, report, result
 
 
@@ -261,6 +267,77 @@ def geocode_location(q: str):
     return extract_location(q)
 
 
+
+@app.get("/api/v1/events")
+def list_events(limit: int = 100):
+    """Return the durable event stream for observability and audit."""
+    limit = max(1, min(limit, 500))
+    db = SessionLocal()
+    try:
+        events = db.query(EventRecord).order_by(EventRecord.id.desc()).limit(limit).all()
+        return {"events": [
+            {
+                "id": e.id,
+                "event_type": e.event_type,
+                "incident_id": e.incident_id,
+                "status": e.status,
+                "payload": e.payload or {},
+                "error": e.error,
+                "created_at": e.created_at,
+            } for e in events
+        ]}
+    finally:
+        db.close()
+
+
+@app.post("/api/v1/events")
+def create_event(event_type: str, incident_id: Optional[int] = None, payload: Optional[dict] = None):
+    """Publish an external update into the event-driven orchestration layer."""
+    allowed = {"incident.updated", "resource.updated", "monitor.tick"}
+    if event_type not in allowed:
+        raise HTTPException(status_code=422, detail=f"Unsupported event type. Use one of: {sorted(allowed)}")
+    if incident_id:
+        db = SessionLocal()
+        try:
+            if not db.get(Incident, incident_id):
+                raise HTTPException(status_code=404, detail="Incident not found.")
+        finally:
+            db.close()
+    return {"queued": True, "event": publish_event(event_type, incident_id, payload or {})}
+
+
+@app.post("/api/v1/incidents/{incident_id}/refresh")
+def refresh_incident_monitoring(incident_id: int):
+    db = SessionLocal()
+    try:
+        if not db.get(Incident, incident_id):
+            raise HTTPException(status_code=404, detail="Incident not found.")
+    finally:
+        db.close()
+    return {"queued": True, "event": publish_event("incident.updated", incident_id, {"source": "coordinator_refresh"})}
+
+
+@app.get("/api/v1/monitoring/status")
+def monitoring_status():
+    db = SessionLocal()
+    try:
+        queued = db.query(EventRecord).filter(EventRecord.status == "queued").count()
+        processing = db.query(EventRecord).filter(EventRecord.status == "processing").count()
+        completed = db.query(EventRecord).filter(EventRecord.status == "completed").count()
+        failed = db.query(EventRecord).filter(EventRecord.status == "failed").count()
+        return {
+            "event_driven_monitoring": "online",
+            "queued": queued,
+            "processing": processing,
+            "completed": completed,
+            "failed": failed,
+            "human_approval_required": True,
+            "automatic_dispatch": False,
+            "checked_at": datetime.now(timezone.utc),
+        }
+    finally:
+        db.close()
+
 @app.get("/api/v1/resources")
 def list_resources():
     db = SessionLocal()
@@ -302,6 +379,7 @@ def create_resource_proposal(incident_id: int, request: ResourceProposalRequest)
         rationale = request.rationale or f"{resource.resource_type} is relevant to the reported {incident.category.lower()} scenario."
         propose_resource(db, incident.id, resource.id, rationale)
         db.commit()
+        publish_event("resource.updated", incident.id, {"resource_id": resource.id, "change": "proposal_created"})
         return {"status": "Proposed", "incident_id": incident.id, "resource_id": resource.id, "rationale": rationale}
     finally:
         db.close()
