@@ -2,6 +2,8 @@ import streamlit as st
 from utils.database import init_db, get_db
 from utils.seed import seed_database
 from utils.ui import inject_css, sidebar_navigation
+from utils.event_bus import start_worker
+from utils.monitoring import process_event
 from utils.pages import (
     dashboard_page, report_page, incidents_page,
     resources_page, ai_activity_page, live_monitoring_page, audit_page
@@ -17,6 +19,7 @@ st.set_page_config(
 inject_css()
 init_db()
 seed_database()
+start_worker(process_event)
 
 page = sidebar_navigation()
 
