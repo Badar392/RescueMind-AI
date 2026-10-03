@@ -90,7 +90,25 @@ div[data-testid="stMetricValue"]{font-weight:800;letter-spacing:-.03em}
 .stButton>button,.stFormSubmitButton>button{border-radius:10px;font-weight:700;border:1px solid var(--line);transition:.15s}
 .stButton>button[kind="primary"],.stFormSubmitButton>button{background:linear-gradient(90deg,#ff5d73,#8b93ff);border:0;color:#fff}
 .stButton>button:hover,.stFormSubmitButton>button:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(99,102,241,.3)}
-[data-baseweb="input"],[data-baseweb="textarea"],[data-baseweb="select"]>div{border-radius:10px!important;background:#1a2a55!important}
+/* Input fields: always-visible fill + border (not only on focus) */
+[data-baseweb="input"],[data-baseweb="textarea"],[data-baseweb="select"]>div,[data-baseweb="base-input"]{
+ background:#0f1a3d!important;border:1.5px solid rgba(165,180,252,.55)!important;border-radius:10px!important;transition:.15s}
+[data-baseweb="input"]:hover,[data-baseweb="textarea"]:hover,[data-baseweb="select"]>div:hover{border-color:#a5b4fc!important}
+[data-baseweb="input"]:focus-within,[data-baseweb="textarea"]:focus-within,[data-baseweb="select"]>div:focus-within{
+ border-color:#8b93ff!important;box-shadow:0 0 0 3px rgba(139,147,255,.28)!important}
+[data-baseweb="input"] input,[data-baseweb="textarea"] textarea,[data-baseweb="base-input"],[data-baseweb="base-input"] input,
+[data-baseweb="select"] input,[data-baseweb="select"] div{background:transparent!important;color:#f4f7ff!important}
+[data-baseweb="input"] input::placeholder,[data-baseweb="textarea"] textarea::placeholder{color:#8fa0c8!important;opacity:1}
+[data-baseweb="select"] svg,[data-testid="stNumberInput"] button svg{fill:#c7d2fe!important}
+[data-testid="stNumberInput"] button{background:#16244d!important;border-color:rgba(165,180,252,.4)!important}
+[data-testid="stFileUploaderDropzone"]{background:#0f1a3d!important;border:1.5px dashed rgba(165,180,252,.6)!important;border-radius:12px}
+[data-testid="stFileUploaderDropzone"] *{color:#dbe4ff!important}
+[data-testid="stFileUploaderDropzone"] button{background:#263767!important;border:1px solid rgba(165,180,252,.5)!important}
+[data-testid="stAudioInput"]{background:#0f1a3d!important;border:1.5px solid rgba(165,180,252,.55)!important;border-radius:12px}
+[data-testid="stWidgetLabel"] p,[data-testid="stWidgetLabel"] label{color:#e8edff!important;font-weight:600;font-size:.86rem}
+[data-baseweb="checkbox"]>span:first-child{border:1.5px solid #a5b4fc!important;background:#0f1a3d!important}
+[data-baseweb="popover"] ul{background:#1a2a55!important}
+[data-baseweb="popover"] li:hover{background:#2f4285!important}
 [data-testid="stForm"]{border:1px solid var(--line);border-radius:16px;background:var(--card);padding:22px}
 [data-testid="stExpander"]{border:1px solid var(--line);border-radius:12px;background:var(--card)}
 [data-testid="stTabs"] [role="tablist"]{gap:4px;border-bottom:1px solid var(--line)}
