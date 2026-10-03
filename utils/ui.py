@@ -107,6 +107,22 @@ div[data-testid="stMetricValue"]{font-weight:800;letter-spacing:-.03em}
 [data-testid="stAudioInput"]{background:#0f1a3d!important;border:1.5px solid rgba(165,180,252,.55)!important;border-radius:12px}
 [data-testid="stWidgetLabel"] p,[data-testid="stWidgetLabel"] label{color:#e8edff!important;font-weight:600;font-size:.86rem}
 [data-baseweb="checkbox"]>span:first-child{border:1.5px solid #a5b4fc!important;background:#0f1a3d!important}
+/* Robust pass: every input wrapper by test-id, stronger contrast, no double borders */
+[data-testid="stTextInputRootElement"],[data-testid="stTextAreaRootElement"],[data-testid="stNumberInputContainer"],
+[data-testid="stSelectbox"] [data-baseweb="select"]>div,[data-testid="stMultiSelect"] [data-baseweb="select"]>div,
+[data-testid="stDateInput"] [data-baseweb="input"],[data-testid="stTimeInput"] [data-baseweb="input"],
+div[data-baseweb="select"]>div:first-child,div[data-baseweb="input"],div[data-baseweb="textarea"]{
+ background:#0a1230!important;border:2px solid rgba(199,210,254,.75)!important;border-radius:10px!important;box-shadow:none!important}
+[data-testid="stTextInputRootElement"]:focus-within,[data-testid="stTextAreaRootElement"]:focus-within,
+[data-testid="stNumberInputContainer"]:focus-within,div[data-baseweb="select"]>div:first-child:focus-within,
+div[data-baseweb="input"]:focus-within,div[data-baseweb="textarea"]:focus-within{
+ border-color:#ff8aa0!important;box-shadow:0 0 0 3px rgba(255,138,160,.25)!important}
+div[data-baseweb="base-input"]{border:none!important;box-shadow:none!important;background:transparent!important}
+[data-testid="stTextInput"] input,[data-testid="stTextArea"] textarea,[data-testid="stNumberInput"] input,
+[data-testid="stSelectbox"] input,[data-testid="stSelectbox"] [data-baseweb="select"] div{
+ color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;background:transparent!important}
+[data-testid="stFileUploaderDropzone"],[data-testid="stAudioInput"]{background:#0a1230!important;border:2px dashed rgba(199,210,254,.75)!important}
+[data-testid="stAudioInput"]{border-style:solid!important}
 [data-baseweb="popover"] ul{background:#1a2a55!important}
 [data-baseweb="popover"] li:hover{background:#2f4285!important}
 [data-testid="stForm"]{border:1px solid var(--line);border-radius:16px;background:var(--card);padding:22px}
