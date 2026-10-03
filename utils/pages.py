@@ -2,13 +2,14 @@ import pandas as pd
 import streamlit as st
 from sqlalchemy import desc
 from utils.models import (
-    Incident, Resource, AgentExecution, AuditLog,
+    Incident, Resource, AgentExecution, AuditLog, ResourceOptimizationRun,
     IncidentEvidence, ResourceAssignment
 )
 from utils.services import (
     create_incident, change_status, propose_resource
 )
 from utils.agents import orchestrate, resource_agent
+from utils.resource_optimizer import optimize_resources
 from utils.ai import transcribe_audio
 from utils.data import load_demo_dataset
 from utils.ui import page_hero, severity_badge, status_badge
@@ -171,20 +172,18 @@ def report_page(db):
         x, y = st.columns([1, 1], gap="large")
         explanation = result["explanation"]
         with x:
-            st.markdown('<div class="panel">', unsafe_allow_html=True)
-            st.markdown("**Detected signals**")
-            detected = explanation.get("detected", [])
-            st.write(" · ".join(map(str, detected)) if detected else "No explicit signals returned.")
-            st.markdown("**Missing information**")
-            missing = explanation.get("missing", [])
-            st.write(" · ".join(map(str, missing)) if missing else "No missing information reported.")
-            st.markdown('</div>', unsafe_allow_html=True)
+            with st.container(border=True):
+                st.markdown("**Detected signals**")
+                detected = explanation.get("detected", [])
+                st.write(" · ".join(map(str, detected)) if detected else "No explicit signals returned.")
+                st.markdown("**Missing information**")
+                missing = explanation.get("missing", [])
+                st.write(" · ".join(map(str, missing)) if missing else "No missing information reported.")
         with y:
-            st.markdown('<div class="panel">', unsafe_allow_html=True)
-            st.markdown("**Reasoning**")
-            st.write(explanation.get("reasoning", "Not available"))
-            st.caption(f"Provider: {explanation.get('provider', 'Unknown')}")
-            st.markdown('</div>', unsafe_allow_html=True)
+            with st.container(border=True):
+                st.markdown("**Reasoning**")
+                st.write(explanation.get("reasoning", "Not available"))
+                st.caption(f"Provider: {explanation.get('provider', 'Unknown')}")
 
         vision = result.get("agent_context", {}).get("data", {}).get("vision", {}) if isinstance(result.get("agent_context"), dict) else {}
         if vision:
@@ -250,20 +249,18 @@ def incidents_page(db):
         explanation = selected.ai_explanation or {}
         x, y = st.columns(2, gap="large")
         with x:
-            st.markdown('<div class="panel">', unsafe_allow_html=True)
-            st.markdown("**Detected signals**")
-            st.write(explanation.get("detected", []) or "No signals available")
-            st.markdown("**Missing information**")
-            st.write(explanation.get("missing", []) or "None reported")
-            st.markdown("**Warnings**")
-            st.write(explanation.get("warnings", []) or "None")
-            st.markdown('</div>', unsafe_allow_html=True)
+            with st.container(border=True):
+                st.markdown("**Detected signals**")
+                st.write(explanation.get("detected", []) or "No signals available")
+                st.markdown("**Missing information**")
+                st.write(explanation.get("missing", []) or "None reported")
+                st.markdown("**Warnings**")
+                st.write(explanation.get("warnings", []) or "None")
         with y:
-            st.markdown('<div class="panel">', unsafe_allow_html=True)
-            st.markdown("**Reasoning**")
-            st.write(explanation.get("reasoning", "Not available"))
-            st.caption(f"Provider: {explanation.get('provider', 'Unknown')}")
-            st.markdown('</div>', unsafe_allow_html=True)
+            with st.container(border=True):
+                st.markdown("**Reasoning**")
+                st.write(explanation.get("reasoning", "Not available"))
+                st.caption(f"Provider: {explanation.get('provider', 'Unknown')}")
 
         agent_context = explanation.get("agent_context", {})
         response_plan = agent_context.get("data", {}).get("response_plan", {})
@@ -401,6 +398,23 @@ def resources_page(db):
     b.metric("Available", available)
     c.metric("Unavailable / Busy", busy)
 
+    st.markdown('<div class="section-title">AI RESOURCE OPTIMIZATION</div>', unsafe_allow_html=True)
+    active_incidents = db.query(Incident).filter(Incident.status.in_(["Pending", "Under Review", "Approved", "Assigned", "In Progress"])).all()
+    if active_incidents and resources:
+        recommendations = optimize_resources(active_incidents, resources, 3)
+        st.caption("Recommendations balance capability, availability, proximity, capacity, incident severity, and resource competition. Human approval is required.")
+        if recommendations:
+            st.dataframe(pd.DataFrame([{
+                "Incident": x["incident_code"], "Severity": x["severity"], "Resource": x["resource_code"],
+                "Type": x["resource_type"], "Distance (km)": round(x["distance_km"], 1) if x["distance_km"] is not None else None,
+                "Optimized Score": x["optimized_score"], "Competition Penalty": x["competition_penalty"],
+                "Decision": "Human review"
+            } for x in recommendations]), use_container_width=True, hide_index=True)
+        else:
+            st.info("No feasible resource recommendations for active incidents.")
+    else:
+        st.info("Create an active incident to generate optimization recommendations.")
+
     st.markdown('<div class="section-title">RESOURCE INVENTORY</div>', unsafe_allow_html=True)
     st.dataframe(
         pd.DataFrame([
@@ -417,6 +431,18 @@ def resources_page(db):
         use_container_width=True,
         hide_index=True,
     )
+
+    with st.expander("↻ Update resource availability"):
+        if resources:
+            selected_resource = st.selectbox("Resource", resources, format_func=lambda r: f"{r.resource_code} — {r.name}")
+            new_status = st.selectbox("New status", ["Available", "Busy", "Maintenance", "Offline"], index=["Available", "Busy", "Maintenance", "Offline"].index(selected_resource.status) if selected_resource.status in {"Available", "Busy", "Maintenance", "Offline"} else 0)
+            if st.button("Save Resource Status", use_container_width=True):
+                old_status = selected_resource.status
+                selected_resource.status = new_status
+                db.add(AuditLog(action="resource_status_changed", actor="coordinator", entity_type="resource", entity_id=str(selected_resource.id), details={"old": old_status, "new": new_status}))
+                db.commit()
+                st.success("Resource status updated; optimization will be recalculated on the next monitoring event.")
+                st.rerun()
 
     with st.expander("＋ Add simulated resource"):
         with st.form("add_resource"):
