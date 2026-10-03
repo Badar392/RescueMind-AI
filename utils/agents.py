@@ -9,7 +9,7 @@ import time
 from math import sqrt
 
 from utils.models import AgentExecution, IncidentLocation, Resource
-from utils.ai import explain_incident
+from utils.ai import explain_incident, analyze_image
 from utils.agent_context import IncidentContext
 from utils.location_service import extract_location
 from utils.resource_matcher import rank_resources
@@ -82,6 +82,7 @@ def severity_agent(description, category):
     rules = [
         (["death", "dead", "fatal", "killed"], 45, "Reported fatality"),
         (["trapped", "stranded"], 30, "Reported trapped/stranded people"),
+        (["15 people", "20 people", "many people", "multiple people"], 15, "Multiple people potentially affected"),
         (["injured", "injury", "bleeding", "wounded"], 25, "Reported injury"),
         (["unconscious", "not breathing"], 30, "Reported unconscious/non-responsive person"),
         (["collapsed", "collapse"], 25, "Reported structural collapse"),
@@ -193,7 +194,7 @@ def _run_agent(db, incident, name, fn, context):
         return error
 
 
-def orchestrate(db, incident, selected_category):
+def orchestrate(db, incident, selected_category, image_bytes=None, image_name=None):
     """Run a stateful, explainable, human-controlled agent workflow.
 
     Agents communicate through IncidentContext. The orchestrator branches when
@@ -213,6 +214,16 @@ def orchestrate(db, incident, selected_category):
         lambda: intake_agent(incident.description, selected_category), context,
     )
     context.put("intake", intake)
+
+    # Multimodal evidence is analyzed independently and then fed into the shared context.
+    if image_bytes:
+        vision = _run_agent(
+            db, incident, "Vision Evidence Agent",
+            lambda: analyze_image(image_bytes, image_name or "evidence.jpg", incident.description), context,
+        )
+        context.put("vision", vision)
+        if vision.get("possible_category") and selected_category == "Auto Detect" and vision.get("confidence", 0) >= 0.75:
+            context.warn(f"Vision suggests category: {vision['possible_category']}; coordinator confirmation is required.")
 
     location = _run_agent(
         db, incident, "Location Extraction Agent",
@@ -324,4 +335,5 @@ def orchestrate(db, incident, selected_category):
         "response_plan": response_plan,
         "warnings": context.warnings,
         "agent_trace": context.agent_trace,
+        "agent_context": final_snapshot,
     }
