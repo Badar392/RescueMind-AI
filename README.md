@@ -5,7 +5,7 @@
 The Streamlit front end has a new design system and a rebuilt Command Center.
 
 ### Highlights
-- Dark, professional theme with Inter typography and an indigo / red accent gradient.
+- Bright navy / indigo theme (high contrast, vivid accents) with Inter typography and an indigo / red accent gradient.
 - Sidebar with logo, icon navigation, active-page highlight and live system status card.
 - Gradient hero header on every page.
 - Command Center: five KPI cards, interactive dark incident map colored by severity,
