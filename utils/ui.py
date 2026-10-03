@@ -98,8 +98,11 @@ div[data-testid="stMetricValue"]{font-weight:800;letter-spacing:-.03em}
 [data-testid="stFileUploaderDropzone"]{background:rgba(139,147,255,.16)!important;border:1.5px dashed #9aa3ff!important;border-radius:14px}
 [data-testid="stAudioInput"]{border:1.5px solid #8b93ff!important;border-radius:14px}
 [data-testid="stExpander"]{border:1px solid var(--line);border-radius:12px;background:var(--card)}
-[data-testid="stTabs"] [role="tablist"]{gap:4px;border-bottom:1px solid var(--line)}
-[data-testid="stTabs"] button{font-weight:600;border-radius:8px 8px 0 0}
+[data-testid="stTabs"] [role="tablist"]{gap:14px;border-bottom:1px solid var(--line);padding-bottom:2px}
+[data-testid="stTabs"] button[role="tab"]{font-weight:600;border-radius:10px 10px 0 0;padding:10px 18px;margin-right:8px;transition:.15s}
+[data-testid="stTabs"] button[role="tab"]:hover{background:rgba(139,147,255,.14)}
+[data-testid="stTabs"] button[role="tab"][aria-selected="true"]{background:rgba(139,147,255,.20)}
+[data-testid="stTabs"] button[role="tab"] p{font-size:.92rem}
 [data-testid="stVerticalBlockBorderWrapper"]{border-radius:14px}
 .stDataFrame{border:1px solid var(--line);border-radius:12px;overflow:hidden}
 """
