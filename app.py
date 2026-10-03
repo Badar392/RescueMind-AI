@@ -4,7 +4,7 @@ from utils.seed import seed_database
 from utils.ui import inject_css, sidebar_navigation
 from utils.pages import (
     dashboard_page, report_page, incidents_page,
-    resources_page, ai_activity_page, audit_page
+    resources_page, ai_activity_page, live_monitoring_page, audit_page
 )
 
 st.set_page_config(
@@ -31,5 +31,7 @@ with get_db() as db:
         resources_page(db)
     elif page == "AI Activity":
         ai_activity_page(db)
+    elif page == "Live Monitoring":
+        live_monitoring_page(db)
     elif page == "Audit Trail":
         audit_page(db)
