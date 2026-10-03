@@ -9,6 +9,7 @@ from utils.services import (
     create_incident, change_status, propose_resource
 )
 from utils.agents import orchestrate, resource_agent
+from utils.ai import transcribe_audio
 from utils.data import load_demo_dataset
 from utils.ui import page_hero, severity_badge, status_badge
 
@@ -123,29 +124,38 @@ def report_page(db):
             )
         with c2:
             image = st.file_uploader("Optional evidence image", type=["png", "jpg", "jpeg"])
+        voice = st.audio_input("Optional voice report") if hasattr(st, "audio_input") else st.file_uploader("Optional voice report", type=["wav", "mp3", "m4a", "webm"])
         submitted = st.form_submit_button("🚨 Submit Emergency Report", use_container_width=True)
 
     if submitted:
+        # Optional voice becomes an additional evidence channel. The user can still edit the text before submission.
+        voice_text = ""
+        if voice:
+            try:
+                voice_result = transcribe_audio(voice.getvalue(), getattr(voice, "name", "report.webm"))
+                voice_text = voice_result.get("text", "").strip()
+                if voice_text and not description.strip():
+                    description = voice_text
+                elif voice_text:
+                    description = f"{description.strip()}\n\nVoice evidence: {voice_text}"
+            except Exception as exc:
+                st.warning(f"Voice transcription unavailable: {type(exc).__name__}")
+
         if len(description.strip()) < 10:
-            st.error("Please provide a more detailed description.")
+            st.error("Please provide a more detailed description or a usable voice report.")
             return
 
         incident, report = create_incident(
-            db,
-            description,
-            "Other" if category == "Auto Detect" else category,
-            location,
-            image.name if image else None,
+            db, description, "Other" if category == "Auto Detect" else category, location, image.name if image else None,
         )
 
+        image_bytes = image.getvalue() if image else None
         if image:
-            db.add(IncidentEvidence(
-                incident_id=incident.id,
-                evidence_type="image",
-                file_name=image.name,
-            ))
+            db.add(IncidentEvidence(incident_id=incident.id, evidence_type="image", file_name=image.name))
+        if voice:
+            db.add(IncidentEvidence(incident_id=incident.id, evidence_type="voice", file_name=getattr(voice, "name", "voice-report"), extracted_text=voice_text or None))
 
-        result = orchestrate(db, incident, category)
+        result = orchestrate(db, incident, category, image_bytes=image_bytes, image_name=image.name if image else None)
         db.commit()
 
         st.success(
@@ -175,6 +185,12 @@ def report_page(db):
             st.write(explanation.get("reasoning", "Not available"))
             st.caption(f"Provider: {explanation.get('provider', 'Unknown')}")
             st.markdown('</div>', unsafe_allow_html=True)
+
+        vision = result.get("agent_context", {}).get("data", {}).get("vision", {}) if isinstance(result.get("agent_context"), dict) else {}
+        if vision:
+            st.markdown('<div class="section-title">VISION EVIDENCE</div>', unsafe_allow_html=True)
+            st.write(vision.get("findings", []) or "No visible findings returned.")
+            if vision.get("hazards"): st.write("Hazards:", vision.get("hazards"))
 
         st.warning("Human verification is required before operational action.")
 
