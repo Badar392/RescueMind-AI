@@ -1,161 +1,77 @@
-# 🚨 RescueMind AI
+# RescueMind AI — Version 2.2
 
-RescueMind AI is a human-controlled emergency intelligence and simulated resource coordination prototype.
+## Event-Driven Incident Monitoring
 
-The current architecture uses a FastAPI service boundary, a stateful multi-agent orchestrator, a shared incident context, explainable resource ranking, response planning, and a Streamlit coordinator dashboard.
+Version 2.2 extends v2.1 with a lightweight event-driven runtime. New reports and operational updates are published to a durable event stream, processed by a background worker, and recorded for auditability.
 
-> **Safety:** This is a prototype. AI output is unverified decision support. The system never automatically dispatches real emergency resources.
+### What is new
+- Event bus with a durable `event_records` table.
+- Background event worker for asynchronous agent reactions.
+- Continuous Monitoring Agent that re-checks severity, resource candidates and response plans.
+- Event-driven incident refresh endpoint.
+- External event endpoint for integration with mobile/IoT/dispatch systems.
+- Monitoring status endpoint.
+- Streamlit **Live Monitoring** page showing the event stream.
+- Automatic escalation signals for high/critical incidents that have not received human approval.
+- Resource updates can trigger re-analysis without re-running the original citizen intake.
+- Human approval remains mandatory; the system never dispatches a resource automatically.
 
-## Architecture
-
-```text
-Citizen / Web / Mobile
-        │
-        ▼
-FastAPI Backend (backend/main.py)
-        │
-        ▼
-AI Orchestrator (utils/agents.py)
-        │
-        ▼
-Shared Incident Context (utils/agent_context.py)
-        │
- ┌──────┼─────────┬───────────────┐
- ▼      ▼         ▼               ▼
-Report Location Duplicate      Severity
-Agent  Agent     Agent           Agent
- │       │         │               │
- └───────┴─────────┴───────────────┘
-                 │
-                 ▼
-          AI Explanation Agent
-                 │
-                 ▼
-        Resource Matching Agent
-                 │
-                 ▼
-        Response Planning Agent
-                 │
-          ┌──────┴──────┐
-          ▼             ▼
-   Human Review Gate   Audit/Trace
-          │
-          ▼
- Streamlit Coordinator UI
-          │
-          ▼
- Status + Resource Tracking
-```
-
-## What changed in the intelligent-agent upgrade
-
-- **Shared Incident Context:** agents now communicate through a common structured state instead of isolated function results.
-- **Agent execution trace:** every agent records its status, duration, confidence where available, and JSON output.
-- **Dynamic human-review gate:** high/critical incidents and strong duplicate signals receive an explicit review-gate step.
-- **Improved duplicate detection:** combines text similarity, category similarity, and geographic proximity when coordinates are available.
-- **Ranked resource matching:** available resources are scored using capability, availability, capacity, and distance when known.
-- **Response planning:** generates actions, risks, missing information, candidate resources, and an explicit no-auto-dispatch rule.
-- **Safe location extraction:** accepts reporter coordinates but never invents coordinates from text. Text locations are marked for verification.
-- **Incident location records:** normalized location intelligence is stored in `IncidentLocation`.
-- **Agent Timeline UI:** the Incident Management page now exposes the agent execution sequence and each agent's output.
-- **Agent Timeline API:** `GET /api/v1/incidents/{incident_id}/agents` exposes the same trace to other clients.
-- **Backend-safe AI module:** `utils/ai.py` can run without importing Streamlit, so FastAPI can use the same intelligence layer.
-
-## Project structure
+### Architecture
 
 ```text
-RescueMind-AI/
-├── app.py
-├── backend/
-│   ├── __init__.py
-│   └── main.py
-├── requirements.txt
-├── README.md
-├── .gitignore
-├── .env.example
-├── .streamlit/
-│   ├── config.toml
-│   └── secrets.toml.example
-├── utils/
-│   ├── __init__.py
-│   ├── agents.py                 # multi-agent orchestrator
-│   ├── agent_context.py          # NEW: shared agent state
-│   ├── ai.py                     # optional Groq explanation layer
-│   ├── config.py
-│   ├── data.py
-│   ├── database.py
-│   ├── location_service.py       # NEW: safe location extraction
-│   ├── models.py
-│   ├── pages.py                  # updated incident intelligence UI
-│   ├── resource_matcher.py       # NEW: ranked resource matching
-│   ├── response_planner.py       # NEW: transparent response plans
-│   ├── seed.py
-│   ├── services.py
-│   └── ui.py
-└── data/
-    └── simulated_emergencies.csv
+Citizen / Mobile / Voice / Image
+              |
+          FastAPI API
+              |
+       Event Publisher
+              |
+       Durable Event Stream
+              |
+      Background Event Worker
+              |
+     Continuous Monitoring Agent
+       /          |           \
+ Severity     Resource      Response
+ Re-check      Re-rank       Re-plan
+       \          |           /
+        Human Review Gate
+              |
+      Coordinator Dashboard
+              |
+       Approved Operations
 ```
 
-## Run locally
+### New API endpoints
+- `GET /api/v1/events`
+- `POST /api/v1/events?event_type=incident.updated&incident_id=1`
+- `POST /api/v1/incidents/{id}/refresh`
+- `GET /api/v1/monitoring/status`
 
-```powershell
-py -3.14 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
+Existing v2.1 endpoints remain available.
+
+### Run
+
+```bash
 pip install -r requirements.txt
-```
-
-Run the coordinator UI:
-
-```powershell
 streamlit run app.py
 ```
 
-Run the FastAPI backend in another terminal:
+In another terminal:
 
-```powershell
+```bash
 uvicorn backend.main:app --reload
 ```
 
-API documentation:
+FastAPI docs: `http://127.0.0.1:8000/docs`
 
-```text
-http://127.0.0.1:8000/docs
-```
+### Test v2.2
 
-Health check:
+1. Submit an emergency report.
+2. Open **Live Monitoring** in Streamlit.
+3. Watch the `incident.created` event move through the stream.
+4. Call the incident refresh endpoint to create an `incident.updated` event.
+5. Observe a new Continuous Monitoring Agent execution in **AI Activity**.
+6. Review the recommendation; no resource is dispatched automatically.
 
-```text
-GET /api/v1/health
-```
-
-Agent timeline:
-
-```text
-GET /api/v1/incidents/{incident_id}/agents
-```
-
-## LLM configuration
-
-The application works without an API key using deterministic fallback logic.
-
-Optional Streamlit secrets:
-
-```toml
-GROQ_API_KEY = "your_real_groq_key"
-GROQ_MODEL = "openai/gpt-oss-120b"
-```
-
-Never commit real API keys.
-
-## Version 2.1 — Multimodal + Geospatial Intelligence
-
-This release adds:
-- optional voice intake with Groq Whisper
-- optional emergency-scene image analysis with Groq Vision
-- real text-location geocoding through OpenStreetMap Nominatim
-- geospatial resource distance scoring
-- multimodal evidence stored in the shared incident context
-- `/api/v1/reports/voice` and `/api/v1/location/geocode` endpoints
-
-Set `GEOCODING_ENABLED=false` if external geocoding is not desired. Coordinates returned by geocoding are always unverified until a coordinator confirms them.
+### Important
+The event worker is intentionally in-process for a student/demo deployment. For production, replace it with Redis Streams, RabbitMQ, Kafka, or another durable message broker and run workers as separate services.
