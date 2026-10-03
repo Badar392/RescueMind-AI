@@ -37,7 +37,7 @@ html,body,.stApp,[class*="css"]{font-family:'Inter',sans-serif}
 [data-testid="stSidebar"] [role="radiogroup"] label>div:first-child{display:none}
 [data-testid="stSidebar"] [role="radiogroup"] p{font-size:.88rem;font-weight:600;color:#eef2ff}
 .status-card{margin-top:18px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--card)}
-.status-row{display:flex;align-items:center;gap:8px;color:var(--mut);font-size:.72rem;margin:6px 0}
+.status-row{display:flex;align-items:center;gap:10px;color:#e6ecff;font-size:.92rem;font-weight:500;margin:9px 0}
 .dot{width:8px;height:8px;border-radius:50%;background:#22c55e;box-shadow:0 0 10px #22c55e;animation:pulse 2s infinite}
 @keyframes pulse{50%{opacity:.4}}
 
