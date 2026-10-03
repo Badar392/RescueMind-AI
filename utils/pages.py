@@ -210,7 +210,7 @@ def incidents_page(db):
             <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;margin-top:5px;">
                 <div>
                     <div style="font-size:1.1rem;font-weight:800;color:#f8fafc;">{selected.incident_code}</div>
-                    <div style="font-size:.76rem;color:#8194aa;margin-top:3px;">{selected.category} · {selected.location or 'Location not verified'}</div>
+                    <div style="font-size:.76rem;color:#8194aa;margin-top:3px;">{selected.category} · {selected.location_text or 'Location not verified'}</div>
                 </div>
                 <div>{severity_badge(selected.severity)} &nbsp; {status_badge(selected.status)}</div>
             </div>
