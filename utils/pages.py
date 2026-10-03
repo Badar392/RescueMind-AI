@@ -228,17 +228,19 @@ def incidents_page(db):
     with st.expander("View original emergency description", expanded=True):
         st.write(selected.description)
 
-    tab1, tab2, tab3 = st.tabs(["🧠 AI Explanation", "🚑 Resources", "🛡 Coordinator Action"])
+    tab1, tab2, tab3, tab4 = st.tabs(["🧠 AI Intelligence", "🚑 Resources", "🛡 Coordinator Action", "🤖 Agent Timeline"])
 
     with tab1:
         explanation = selected.ai_explanation or {}
         x, y = st.columns(2, gap="large")
         with x:
             st.markdown('<div class="panel">', unsafe_allow_html=True)
-            st.markdown("**Detected**")
+            st.markdown("**Detected signals**")
             st.write(explanation.get("detected", []) or "No signals available")
-            st.markdown("**Missing**")
+            st.markdown("**Missing information**")
             st.write(explanation.get("missing", []) or "None reported")
+            st.markdown("**Warnings**")
+            st.write(explanation.get("warnings", []) or "None")
             st.markdown('</div>', unsafe_allow_html=True)
         with y:
             st.markdown('<div class="panel">', unsafe_allow_html=True)
@@ -246,7 +248,24 @@ def incidents_page(db):
             st.write(explanation.get("reasoning", "Not available"))
             st.caption(f"Provider: {explanation.get('provider', 'Unknown')}")
             st.markdown('</div>', unsafe_allow_html=True)
-        st.warning("Human verification required before operational action.")
+
+        agent_context = explanation.get("agent_context", {})
+        response_plan = agent_context.get("data", {}).get("response_plan", {})
+        if response_plan:
+            st.markdown('<div class="section-title">RESPONSE PLAN</div>', unsafe_allow_html=True)
+            p1, p2, p3 = st.columns(3, gap="small")
+            p1.metric("Priority", response_plan.get("priority_label", "Review"))
+            p2.metric("Candidates", len(response_plan.get("matched_resources", [])))
+            p3.metric("Approval", "Required" if response_plan.get("human_approval_required", True) else "Not required")
+            st.markdown("**Recommended actions**")
+            for action in response_plan.get("recommended_actions", []):
+                st.write(f"• {action}")
+            if response_plan.get("risks"):
+                st.markdown("**Operational risks / uncertainty**")
+                for risk in response_plan["risks"]:
+                    st.write(f"⚠ {risk}")
+
+        st.warning("Human verification is required before operational action.")
 
     with tab2:
         resources = db.query(Resource).all()
@@ -256,6 +275,7 @@ def incidents_page(db):
             st.info("No matching available resources.")
         else:
             for rec in recommendations:
+                distance_text = f"{rec['distance_km']} km" if rec.get("distance_km") is not None else "unknown"
                 r1, r2 = st.columns([3, 1], gap="large")
                 with r1:
                     st.markdown(
@@ -264,6 +284,7 @@ def incidents_page(db):
                             <div class="incident-code">{rec['name']}</div>
                             <div class="incident-meta">{rec['type']} · {rec['resource_code']}</div>
                             <div style="color:#a9b8c9;font-size:.78rem;margin-top:7px;">{rec['reason']}</div>
+                            <div style="color:#8fd3ff;font-size:.75rem;margin-top:6px;">Match score: {rec.get('match_score', '—')} · Distance: {distance_text}</div>
                         </div>
                         """,
                         unsafe_allow_html=True,
@@ -314,6 +335,38 @@ def incidents_page(db):
                 db.commit()
                 st.success("Incident updated.")
                 st.rerun()
+
+    with tab4:
+        st.markdown('<div class="section-title">AGENT EXECUTION TIMELINE</div>', unsafe_allow_html=True)
+        executions = (
+            db.query(AgentExecution)
+            .filter(AgentExecution.incident_id == selected.id)
+            .order_by(AgentExecution.id.asc())
+            .all()
+        )
+        if not executions:
+            st.info("No agent execution records are available for this incident.")
+        else:
+            for execution in executions:
+                output = execution.output_json or {}
+                confidence = output.get("confidence")
+                confidence_text = f" · confidence {round(confidence * 100)}%" if isinstance(confidence, (int, float)) else ""
+                icon = "✓" if execution.status == "success" else "!"
+                st.markdown(
+                    f"""
+                    <div class="incident-card" style="margin-bottom:8px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+                            <div class="incident-code">{icon} {execution.agent_name}</div>
+                            <div class="incident-meta">{execution.duration_ms or 0} ms{confidence_text}</div>
+                        </div>
+                        <div class="incident-meta" style="margin-top:6px;">Status: {execution.status}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                with st.expander(f"View {execution.agent_name} output", expanded=False):
+                    st.json(output)
+
 
 
 def resources_page(db):
