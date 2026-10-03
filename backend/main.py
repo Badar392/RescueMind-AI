@@ -19,11 +19,12 @@ from utils.ai import transcribe_audio
 from utils.location_service import extract_location
 from utils.event_bus import start_worker, publish_event
 from utils.monitoring import process_event
-from utils.models import EventRecord
+from utils.resource_optimizer import optimize_resources
+from utils.models import EventRecord, ResourceOptimizationRun
 
 app = FastAPI(
     title="RescueMind AI API",
-    version="2.2.0",
+    version="2.3.0",
     description="Emergency intelligence and human-controlled resource coordination API.",
 )
 
@@ -335,6 +336,44 @@ def monitoring_status():
             "automatic_dispatch": False,
             "checked_at": datetime.now(timezone.utc),
         }
+    finally:
+        db.close()
+
+@app.get("/api/v1/resources/optimization")
+def resource_optimization(incident_id: Optional[int] = None, max_per_incident: int = 3):
+    """Return explainable resource-allocation recommendations. No dispatch occurs."""
+    db = SessionLocal()
+    try:
+        if incident_id:
+            incident = db.get(Incident, incident_id)
+            if not incident:
+                raise HTTPException(status_code=404, detail="Incident not found.")
+            incidents = [incident]
+        else:
+            incidents = db.query(Incident).filter(Incident.status.in_(["Pending", "Under Review", "Approved", "Assigned", "In Progress"])).all()
+        resources = db.query(Resource).all()
+        recommendations = optimize_resources(incidents, resources, max(1, min(max_per_incident, 10)))
+        run = ResourceOptimizationRun(trigger="api", summary={"incident_id": incident_id, "recommendation_count": len(recommendations)})
+        db.add(run); db.commit()
+        return {"algorithm": "capability + availability + proximity + capacity + competition", "human_approval_required": True, "automatic_dispatch": False, "recommendations": recommendations}
+    finally:
+        db.close()
+
+@app.post("/api/v1/resources/{resource_id}/status")
+def update_resource_status(resource_id: int, status: str, actor: str = "coordinator"):
+    allowed = {"Available", "Busy", "Maintenance", "Offline"}
+    if status not in allowed:
+        raise HTTPException(status_code=422, detail=f"Invalid resource status. Use one of: {sorted(allowed)}")
+    db = SessionLocal()
+    try:
+        resource = db.get(Resource, resource_id)
+        if not resource:
+            raise HTTPException(status_code=404, detail="Resource not found.")
+        old = resource.status; resource.status = status
+        db.add(AuditLog(action="resource_status_changed", actor=actor, entity_type="resource", entity_id=str(resource.id), details={"old": old, "new": status}))
+        db.commit()
+        publish_event("resource.updated", None, {"resource_id": resource.id, "old_status": old, "new_status": status})
+        return {"resource_id": resource.id, "status": resource.status, "optimization_recheck_queued": True}
     finally:
         db.close()
 
