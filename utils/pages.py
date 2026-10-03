@@ -13,91 +13,80 @@ from utils.agents import orchestrate, resource_agent
 from utils.resource_optimizer import optimize_resources
 from utils.ai import transcribe_audio
 from utils.data import load_demo_dataset
-from utils.ui import page_hero, severity_badge, status_badge
+import plotly.express as px
+from utils.ui import (page_hero, severity_badge, status_badge, kpi_row, section,
+                      style_fig, SEV_COLORS)
 
 STATUSES = ["Pending", "Under Review", "Approved", "Assigned", "In Progress", "Resolved"]
 
 
 def dashboard_page(db):
-    page_hero(
-        "OPERATIONS / COMMAND CENTER",
-        "Emergency Command Center",
-        "AI-assisted incident intelligence with human-controlled operational decisions.",
-    )
-
+    page_hero("OPERATIONS / COMMAND CENTER", "Emergency Command Center",
+              "AI-assisted incident intelligence with human-controlled operational decisions.")
     incidents = db.query(Incident).order_by(desc(Incident.created_at)).all()
     resources = db.query(Resource).all()
-
-    metrics = {
-        "Total Incidents": len(incidents),
-        "Pending Review": sum(i.status in ("Pending", "Under Review") for i in incidents),
-        "Urgent": sum(i.severity in ("High", "Critical") for i in incidents),
-        "Active": sum(i.status in ("Assigned", "In Progress") for i in incidents),
-        "Resolved": sum(i.status == "Resolved" for i in incidents),
-    }
-
-    cols = st.columns(5, gap="small")
-    for col, (label, value) in zip(cols, metrics.items()):
-        col.metric(label, value)
-
-    st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
-    left, right = st.columns([1.55, 1], gap="large")
-
+    n = lambda f: sum(1 for i in incidents if f(i))
+    avail = sum(r.status == "Available" for r in resources)
+    kpi_row([
+        ("Total Incidents", len(incidents), "☰", "blue", "All reported"),
+        ("Pending Review", n(lambda i: i.status in ("Pending", "Under Review")), "⏳", "orange", "Awaiting coordinator"),
+        ("Urgent", n(lambda i: i.severity in ("High", "Critical")), "⚠", "red", "High / Critical"),
+        ("Active", n(lambda i: i.status in ("Assigned", "In Progress")), "⚡", "cyan", "In operation"),
+        ("Resolved", n(lambda i: i.status == "Resolved"), "✔", "green", "Closed cases"),
+    ])
+    st.write("")
+    left, right = st.columns([1.6, 1], gap="large")
     with left:
-        st.markdown('<div class="section-title">LIVE INCIDENT MAP</div>', unsafe_allow_html=True)
-        rows = [
-            {"lat": i.latitude, "lon": i.longitude}
-            for i in incidents
-            if i.latitude is not None and i.longitude is not None
-        ]
+        section("LIVE INCIDENT MAP")
+        rows = [{"lat": i.latitude, "lon": i.longitude, "Incident": i.incident_code, "Severity": i.severity or "Medium"}
+                for i in incidents if i.latitude is not None and i.longitude is not None]
         if rows:
-            st.map(pd.DataFrame(rows), height=410)
+            fig = px.scatter_map(pd.DataFrame(rows), lat="lat", lon="lon", color="Severity", hover_name="Incident",
+                                 color_discrete_map=SEV_COLORS, zoom=9, map_style="carto-darkmatter")
+            fig.update_traces(marker=dict(size=15))
+            st.plotly_chart(style_fig(fig, 400), use_container_width=True)
         else:
             st.info("No coordinates available. RescueMind AI never invents coordinates.")
-
     with right:
-        st.markdown('<div class="section-title">RECENT INCIDENTS</div>', unsafe_allow_html=True)
-        if incidents:
-            for incident in incidents[:7]:
-                st.markdown(
-                    f"""
-                    <div class="incident-card">
-                        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;">
-                            <span class="incident-code">{incident.incident_code}</span>
-                            {severity_badge(incident.severity)}
-                        </div>
-                        <div class="incident-meta">{incident.category} · {incident.status}</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-        else:
+        section("RECENT INCIDENTS")
+        if not incidents:
             st.info("No incidents have been reported yet.")
+        for i in incidents[:6]:
+            st.markdown(
+                f'<div class="incident-card"><div style="display:flex;justify-content:space-between;align-items:center">'
+                f'<span class="incident-code">{i.incident_code}</span>{severity_badge(i.severity)}</div>'
+                f'<div class="incident-meta">{i.category} · {status_badge(i.status)}</div></div>', unsafe_allow_html=True)
 
-    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-    st.markdown('<div class="section-title">OPERATIONAL SNAPSHOT</div>', unsafe_allow_html=True)
+    if incidents:
+        c1, c2, c3 = st.columns([1, 1, 1], gap="large")
+        df = pd.DataFrame([{"Severity": i.severity or "Medium", "Category": i.category, "Status": i.status} for i in incidents])
+        with c1:
+            section("SEVERITY MIX")
+            fig = px.pie(df, names="Severity", hole=.6, color="Severity", color_discrete_map=SEV_COLORS)
+            st.plotly_chart(style_fig(fig, 260), use_container_width=True)
+        with c2:
+            section("BY CATEGORY")
+            d = df["Category"].value_counts().reset_index()
+            fig = px.bar(d, x="count", y="Category", orientation="h", color_discrete_sequence=["#6366f1"])
+            st.plotly_chart(style_fig(fig, 260), use_container_width=True)
+        with c3:
+            section("WORKFLOW STATUS")
+            d = df["Status"].value_counts().reset_index()
+            fig = px.bar(d, x="Status", y="count", color_discrete_sequence=["#06b6d4"])
+            st.plotly_chart(style_fig(fig, 260), use_container_width=True)
+
     a, b = st.columns(2, gap="large")
     with a:
-        st.markdown(
-            f"""
-            <div class="panel">
-                <div class="mini-label">Resource readiness</div>
-                <h3 style="margin:5px 0;color:#f8fafc;">{sum(r.status == 'Available' for r in resources)} available</h3>
-                <div style="color:#8194aa;font-size:.76rem;">of {len(resources)} simulated resources currently tracked</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        pct = round(100 * avail / len(resources)) if resources else 0
+        st.markdown(f'<div class="panel"><div class="mini-label">Resource readiness</div>'
+                    f'<h2 style="margin:6px 0;color:#fff">{avail} / {len(resources)} available</h2>'
+                    f'<div style="height:8px;border-radius:6px;background:#1b2740"><div style="width:{pct}%;height:100%;'
+                    f'border-radius:6px;background:linear-gradient(90deg,#22c55e,#06b6d4)"></div></div></div>',
+                    unsafe_allow_html=True)
     with b:
-        st.markdown(
-            """
-            <div class="safe-notice">
-                <b>Human-in-the-loop:</b> AI outputs are unverified recommendations.
-                Coordinators must review supporting information before operational action.
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        st.markdown('<div class="safe-notice"><b>Human-in-the-loop:</b> AI outputs are unverified recommendations. '
+                    'Coordinators must review supporting information before operational action.</div>',
+                    unsafe_allow_html=True)
 
 
 def report_page(db):
