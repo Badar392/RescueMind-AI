@@ -1,334 +1,154 @@
 import streamlit as st
 
+NAV = [
+    ("Command Center", "▦"), ("Report Emergency", "⚠"), ("Incidents", "☰"),
+    ("Resources", "⛑"), ("AI Activity", "✦"), ("Live Monitoring", "◉"), ("Audit Trail", "✓"),
+]
+TONES = {"red": "#ef4444", "orange": "#f59e0b", "blue": "#6366f1", "green": "#22c55e", "cyan": "#06b6d4"}
+SEV_COLORS = {"Critical": "#ef4444", "High": "#f97316", "Medium": "#eab308", "Low": "#22c55e"}
+
 
 def inject_css():
-    st.markdown(
-        """
-        <style>
-        /* ---------- Global ---------- */
-        .stApp {
-            background:
-                radial-gradient(circle at 85% 0%, rgba(239,68,68,.08), transparent 28%),
-                radial-gradient(circle at 15% 100%, rgba(245,158,11,.05), transparent 30%),
-                #07111f;
-        }
+    st.markdown("""
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#070b14;--card:#0f1626;--card2:#131c30;--line:rgba(148,163,184,.13);--txt:#e8edf6;--mut:#8493ab;--acc:#6366f1;--red:#ef4444}
+html,body,.stApp,[class*="css"]{font-family:'Inter',sans-serif}
+.stApp{background:radial-gradient(900px 400px at 90% -5%,rgba(99,102,241,.14),transparent),
+ radial-gradient(700px 400px at 0% 100%,rgba(239,68,68,.08),transparent),var(--bg)}
+[data-testid="stHeader"]{background:transparent}
+.block-container{max-width:1480px;padding:1.6rem 2rem 3rem}
+#MainMenu,footer{visibility:hidden}
 
-        [data-testid="stHeader"] {
-            background: rgba(7,17,31,.78);
-        }
+/* Sidebar */
+[data-testid="stSidebar"]{background:#0a0f1c;border-right:1px solid var(--line)}
+.brand{display:flex;gap:12px;align-items:center;padding:6px 4px 14px}
+.logo{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-size:20px;
+ background:linear-gradient(135deg,#ef4444,#6366f1);box-shadow:0 8px 22px rgba(239,68,68,.35)}
+.brand-title{font-weight:800;font-size:1.15rem;letter-spacing:-.03em;color:#fff}
+.brand-title span{background:linear-gradient(90deg,#f87171,#818cf8);-webkit-background-clip:text;color:transparent}
+.brand-sub{color:var(--mut);font-size:.68rem}
+.nav-label{color:#5b6b85;font-size:.64rem;font-weight:700;letter-spacing:.14em;margin:14px 6px 6px}
+[data-testid="stSidebar"] [role="radiogroup"]{gap:3px}
+[data-testid="stSidebar"] [role="radiogroup"] label{padding:10px 12px;border-radius:10px;width:100%;
+ border:1px solid transparent;transition:.15s;cursor:pointer}
+[data-testid="stSidebar"] [role="radiogroup"] label:hover{background:rgba(99,102,241,.08)}
+[data-testid="stSidebar"] [role="radiogroup"] label:has(input:checked){
+ background:linear-gradient(90deg,rgba(99,102,241,.22),rgba(99,102,241,.05));border-color:rgba(99,102,241,.35)}
+[data-testid="stSidebar"] [role="radiogroup"] label>div:first-child{display:none}
+[data-testid="stSidebar"] [role="radiogroup"] p{font-size:.88rem;font-weight:600;color:#c7d2e4}
+.status-card{margin-top:18px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+.status-row{display:flex;align-items:center;gap:8px;color:var(--mut);font-size:.72rem;margin:6px 0}
+.dot{width:8px;height:8px;border-radius:50%;background:#22c55e;box-shadow:0 0 10px #22c55e;animation:pulse 2s infinite}
+@keyframes pulse{50%{opacity:.4}}
 
-        [data-testid="stSidebar"] {
-            background: linear-gradient(180deg, #091625 0%, #06101d 100%);
-            border-right: 1px solid rgba(148,163,184,.12);
-        }
+/* Hero */
+.hero{position:relative;overflow:hidden;padding:26px 30px;margin-bottom:22px;border-radius:20px;
+ border:1px solid var(--line);background:linear-gradient(120deg,#131b33 0%,#0f1626 60%,#1a1428 100%)}
+.hero:before{content:"";position:absolute;right:-60px;top:-90px;width:300px;height:300px;border-radius:50%;
+ background:radial-gradient(circle,rgba(99,102,241,.35),transparent 70%)}
+.hero-kicker{color:#a5b4fc;font-size:.68rem;font-weight:800;letter-spacing:.16em;text-transform:uppercase}
+.hero h1{margin:6px 0 4px;font-size:1.9rem;font-weight:800;letter-spacing:-.04em;color:#fff;position:relative}
+.hero p{margin:0;color:#9aabc4;font-size:.92rem;max-width:760px;position:relative}
 
-        [data-testid="stSidebarContent"] {
-            padding-top: 1.2rem;
-        }
+/* KPI */
+.kpi{position:relative;padding:18px;border-radius:16px;border:1px solid var(--line);
+ background:linear-gradient(160deg,var(--card2),var(--card));overflow:hidden;transition:.2s}
+.kpi:hover{transform:translateY(-3px);border-color:rgba(99,102,241,.4);box-shadow:0 14px 30px rgba(0,0,0,.35)}
+.kpi:after{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--c)}
+.kpi-top{display:flex;justify-content:space-between;align-items:center}
+.kpi-label{color:var(--mut);font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.07em}
+.kpi-icon{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:16px;
+ background:color-mix(in srgb,var(--c) 16%,transparent);color:var(--c)}
+.kpi-value{font-size:2.1rem;font-weight:800;color:#fff;letter-spacing:-.04em;margin-top:8px}
+.kpi-hint{color:var(--mut);font-size:.72rem}
 
-        .block-container {
-            max-width: 1500px;
-            padding-top: 2rem;
-            padding-bottom: 3rem;
-        }
+/* Panels */
+.section-title{display:flex;align-items:center;gap:8px;color:#e2e8f0;font-size:.95rem;font-weight:700;margin:18px 0 12px}
+.section-title:before{content:"";width:4px;height:16px;border-radius:2px;background:linear-gradient(var(--acc),var(--red))}
+.panel{padding:18px;border:1px solid var(--line);border-radius:16px;background:var(--card)}
+.mini-label{color:var(--mut);text-transform:uppercase;letter-spacing:.09em;font-size:.65rem;font-weight:700}
+.incident-card{padding:13px 15px;margin:8px 0;border:1px solid var(--line);border-radius:12px;
+ background:var(--card);transition:.15s}
+.incident-card:hover{border-color:rgba(99,102,241,.4);background:var(--card2)}
+.incident-code{color:#fff;font-weight:700;font-size:.85rem}
+.incident-meta{color:var(--mut);font-size:.72rem;margin-top:4px}
+.badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:.64rem;font-weight:700;
+ border:1px solid var(--line);background:rgba(100,116,139,.12);color:#cbd5e1}
+.badge-red{color:#fca5a5;background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.3)}
+.badge-orange{color:#fdba74;background:rgba(249,115,22,.12);border-color:rgba(249,115,22,.3)}
+.badge-yellow{color:#fde68a;background:rgba(234,179,8,.12);border-color:rgba(234,179,8,.3)}
+.badge-green{color:#86efac;background:rgba(34,197,94,.12);border-color:rgba(34,197,94,.3)}
+.badge-blue{color:#a5b4fc;background:rgba(99,102,241,.14);border-color:rgba(99,102,241,.35)}
+.notice{padding:14px 16px;border-radius:12px;border:1px solid rgba(245,158,11,.28);background:rgba(245,158,11,.07);color:#fcd34d;font-size:.84rem}
+.safe-notice{padding:14px 16px;border-radius:12px;border:1px solid rgba(34,197,94,.25);background:rgba(34,197,94,.06);color:#bbf7d0;font-size:.82rem}
 
-        /* ---------- Sidebar ---------- */
-        .brand {
-            padding: 4px 4px 16px;
-        }
-        .brand-title {
-            font-size: 1.35rem;
-            font-weight: 800;
-            letter-spacing: -.03em;
-            color: #f8fafc;
-        }
-        .brand-title span {
-            color: #ef4444;
-        }
-        .brand-subtitle {
-            color: #8294aa;
-            font-size: .76rem;
-            line-height: 1.45;
-            margin-top: 3px;
-        }
-        .system-chip {
-            display: inline-flex;
-            align-items: center;
-            gap: 7px;
-            padding: 5px 9px;
-            margin-top: 10px;
-            border-radius: 999px;
-            border: 1px solid rgba(34,197,94,.22);
-            background: rgba(34,197,94,.07);
-            color: #86efac;
-            font-size: .68rem;
-            font-weight: 700;
-            letter-spacing: .02em;
-        }
-        .system-dot {
-            width: 7px;
-            height: 7px;
-            border-radius: 50%;
-            background: #22c55e;
-            box-shadow: 0 0 10px rgba(34,197,94,.65);
-        }
-        .sidebar-footer {
-            margin-top: 1.5rem;
-            padding: 12px;
-            border: 1px solid rgba(148,163,184,.12);
-            border-radius: 12px;
-            background: rgba(15,23,42,.55);
-        }
-        .sidebar-footer-line {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            color: #94a3b8;
-            font-size: .72rem;
-            margin: 6px 0;
-        }
-
-        /* ---------- Hero ---------- */
-        .hero {
-            position: relative;
-            overflow: hidden;
-            padding: 26px 28px;
-            border: 1px solid rgba(148,163,184,.13);
-            border-radius: 18px;
-            background:
-                linear-gradient(135deg, rgba(15,30,51,.98), rgba(8,19,33,.98));
-            box-shadow: 0 18px 45px rgba(0,0,0,.18);
-            margin-bottom: 20px;
-        }
-        .hero:after {
-            content: "";
-            position: absolute;
-            right: -80px;
-            top: -110px;
-            width: 260px;
-            height: 260px;
-            border-radius: 50%;
-            background: rgba(239,68,68,.08);
-            border: 1px solid rgba(239,68,68,.08);
-        }
-        .hero-kicker {
-            color: #f87171;
-            text-transform: uppercase;
-            letter-spacing: .14em;
-            font-size: .68rem;
-            font-weight: 800;
-            margin-bottom: 7px;
-        }
-        .hero h1 {
-            position: relative;
-            z-index: 1;
-            margin: 0;
-            color: #f8fafc;
-            font-size: 1.9rem;
-            letter-spacing: -.04em;
-        }
-        .hero p {
-            position: relative;
-            z-index: 1;
-            color: #94a8bf;
-            margin: 7px 0 0;
-            max-width: 760px;
-            font-size: .9rem;
-        }
-
-        /* ---------- Cards ---------- */
-        .section-title {
-            color: #e2e8f0;
-            font-size: 1rem;
-            font-weight: 750;
-            margin: 8px 0 12px;
-        }
-        .mini-label {
-            color: #71849b;
-            text-transform: uppercase;
-            letter-spacing: .09em;
-            font-size: .63rem;
-            font-weight: 800;
-        }
-        .panel {
-            padding: 16px 18px;
-            border: 1px solid rgba(148,163,184,.12);
-            border-radius: 14px;
-            background: rgba(10,22,40,.72);
-            box-shadow: 0 10px 30px rgba(0,0,0,.12);
-        }
-        .incident-card {
-            padding: 13px 14px;
-            margin: 8px 0;
-            border: 1px solid rgba(148,163,184,.11);
-            border-radius: 12px;
-            background: rgba(15,23,42,.56);
-        }
-        .incident-code {
-            color: #f8fafc;
-            font-weight: 800;
-            font-size: .82rem;
-        }
-        .incident-meta {
-            color: #7f92aa;
-            font-size: .69rem;
-            margin-top: 4px;
-        }
-        .badge {
-            display: inline-block;
-            padding: 3px 8px;
-            border-radius: 999px;
-            font-size: .62rem;
-            font-weight: 800;
-            letter-spacing: .03em;
-            border: 1px solid rgba(148,163,184,.16);
-            background: rgba(100,116,139,.10);
-            color: #cbd5e1;
-        }
-        .badge-red { color:#fca5a5; background:rgba(239,68,68,.10); border-color:rgba(239,68,68,.25); }
-        .badge-orange { color:#fdba74; background:rgba(249,115,22,.10); border-color:rgba(249,115,22,.25); }
-        .badge-yellow { color:#fde68a; background:rgba(234,179,8,.10); border-color:rgba(234,179,8,.25); }
-        .badge-green { color:#86efac; background:rgba(34,197,94,.10); border-color:rgba(34,197,94,.25); }
-        .badge-blue { color:#93c5fd; background:rgba(59,130,246,.10); border-color:rgba(59,130,246,.25); }
-
-        /* ---------- Notices ---------- */
-        .notice {
-            padding: 14px 16px;
-            border-radius: 13px;
-            border: 1px solid rgba(245,158,11,.25);
-            background: rgba(120,70,10,.13);
-            color: #fcd34d;
-            font-size: .82rem;
-        }
-        .safe-notice {
-            padding: 13px 15px;
-            border-radius: 12px;
-            border: 1px solid rgba(34,197,94,.20);
-            background: rgba(34,197,94,.06);
-            color: #bbf7d0;
-            font-size: .8rem;
-        }
-
-        /* ---------- Streamlit widgets ---------- */
-        div[data-testid="stMetric"] {
-            padding: 15px 16px;
-            border-radius: 14px;
-            border: 1px solid rgba(148,163,184,.12);
-            background: linear-gradient(145deg, rgba(15,30,50,.82), rgba(9,20,35,.82));
-            min-height: 100px;
-        }
-        div[data-testid="stMetricLabel"] {
-            color: #8194aa;
-        }
-        div[data-testid="stMetricValue"] {
-            color: #f8fafc;
-        }
-
-        .stButton > button {
-            border-radius: 9px;
-            font-weight: 700;
-            border: 1px solid rgba(148,163,184,.15);
-        }
-        .stButton > button:hover {
-            border-color: rgba(239,68,68,.45);
-        }
-        .stFormSubmitButton > button {
-            border-radius: 9px;
-            font-weight: 800;
-        }
-        [data-testid="stExpander"] {
-            border: 1px solid rgba(148,163,184,.12);
-            border-radius: 12px;
-            background: rgba(10,22,40,.5);
-        }
-        [data-testid="stTabs"] button {
-            font-weight: 700;
-        }
-        .stDataFrame {
-            border: 1px solid rgba(148,163,184,.10);
-            border-radius: 12px;
-            overflow: hidden;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+/* Streamlit widgets */
+div[data-testid="stMetric"]{padding:16px;border-radius:16px;border:1px solid var(--line);
+ background:linear-gradient(160deg,var(--card2),var(--card))}
+div[data-testid="stMetricLabel"] p{color:var(--mut);font-size:.75rem;text-transform:uppercase;letter-spacing:.06em}
+div[data-testid="stMetricValue"]{font-weight:800;letter-spacing:-.03em}
+.stButton>button,.stFormSubmitButton>button{border-radius:10px;font-weight:700;border:1px solid var(--line);transition:.15s}
+.stButton>button[kind="primary"],.stFormSubmitButton>button{background:linear-gradient(90deg,#ef4444,#6366f1);border:0;color:#fff}
+.stButton>button:hover,.stFormSubmitButton>button:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(99,102,241,.3)}
+[data-baseweb="input"],[data-baseweb="textarea"],[data-baseweb="select"]>div{border-radius:10px!important;background:#0c1322!important}
+[data-testid="stForm"]{border:1px solid var(--line);border-radius:16px;background:var(--card);padding:22px}
+[data-testid="stExpander"]{border:1px solid var(--line);border-radius:12px;background:var(--card)}
+[data-testid="stTabs"] [role="tablist"]{gap:4px;border-bottom:1px solid var(--line)}
+[data-testid="stTabs"] button{font-weight:600;border-radius:8px 8px 0 0}
+[data-testid="stVerticalBlockBorderWrapper"]{border-radius:14px}
+.stDataFrame{border:1px solid var(--line);border-radius:12px;overflow:hidden}
+</style>""", unsafe_allow_html=True)
 
 
-def page_hero(kicker: str, title: str, subtitle: str):
-    st.markdown(
-        f"""
-        <div class="hero">
-            <div class="hero-kicker">{kicker}</div>
-            <h1>{title}</h1>
-            <p>{subtitle}</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+def page_hero(kicker, title, subtitle):
+    st.markdown(f'<div class="hero"><div class="hero-kicker">{kicker}</div><h1>{title}</h1><p>{subtitle}</p></div>',
+                unsafe_allow_html=True)
 
 
-def severity_badge(severity: str) -> str:
-    mapping = {
-        "Critical": "badge-red",
-        "High": "badge-orange",
-        "Medium": "badge-yellow",
-        "Low": "badge-green",
-    }
-    css = mapping.get(severity, "badge")
+def kpi_row(items):
+    """items: list of (label, value, icon, tone, hint)"""
+    for col, (label, value, icon, tone, hint) in zip(st.columns(len(items), gap="medium"), items):
+        col.markdown(
+            f'<div class="kpi" style="--c:{TONES.get(tone, tone)}"><div class="kpi-top">'
+            f'<span class="kpi-label">{label}</span><span class="kpi-icon">{icon}</span></div>'
+            f'<div class="kpi-value">{value}</div><div class="kpi-hint">{hint}</div></div>',
+            unsafe_allow_html=True)
+
+
+def section(title):
+    st.markdown(f'<div class="section-title">{title}</div>', unsafe_allow_html=True)
+
+
+def style_fig(fig, height=300):
+    fig.update_layout(height=height, margin=dict(l=8, r=8, t=8, b=8), paper_bgcolor="rgba(0,0,0,0)",
+                      plot_bgcolor="rgba(0,0,0,0)", font=dict(family="Inter", color="#9aabc4"),
+                      legend=dict(orientation="h", y=-0.15))
+    fig.update_xaxes(gridcolor="rgba(148,163,184,.08)")
+    fig.update_yaxes(gridcolor="rgba(148,163,184,.08)")
+    return fig
+
+
+def severity_badge(severity):
+    css = {"Critical": "badge-red", "High": "badge-orange", "Medium": "badge-yellow", "Low": "badge-green"}.get(severity, "")
     return f'<span class="badge {css}">{severity or "Unknown"}</span>'
 
 
-def status_badge(status: str) -> str:
-    mapping = {
-        "Pending": "badge-yellow",
-        "Under Review": "badge-blue",
-        "Approved": "badge-green",
-        "Assigned": "badge-blue",
-        "In Progress": "badge-orange",
-        "Resolved": "badge-green",
-    }
-    css = mapping.get(status, "badge")
+def status_badge(status):
+    css = {"Pending": "badge-yellow", "Under Review": "badge-blue", "Approved": "badge-green",
+           "Assigned": "badge-blue", "In Progress": "badge-orange", "Resolved": "badge-green"}.get(status, "")
     return f'<span class="badge {css}">{status or "Unknown"}</span>'
 
 
 def sidebar_navigation():
+    icons = dict(NAV)
     with st.sidebar:
-        st.markdown(
-            """
-            <div class="brand">
-                <div class="brand-title">🚨 RescueMind <span>AI</span></div>
-                <div class="brand-subtitle">Emergency intelligence & resource coordination command center</div>
-                <div class="system-chip"><span class="system-dot"></span> SYSTEMS ONLINE</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        st.markdown("**OPERATIONS**")
-        page = st.radio(
-            "Operations",
-            [
-                "Command Center",
-                "Report Emergency",
-                "Incidents",
-                "Resources",
-                "AI Activity",
-                "Live Monitoring",
-                "Audit Trail",
-            ],
-            label_visibility="collapsed",
-        )
-
-        st.markdown(
-            """
-            <div class="sidebar-footer">
-                <div class="sidebar-footer-line">🟢 <span>Prototype services online</span></div>
-                <div class="sidebar-footer-line">🛡️ <span>Human approval required</span></div>
-                <div class="sidebar-footer-line">📡 <span>Simulated emergency data</span></div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
+        st.markdown('<div class="brand"><div class="logo">🚨</div><div><div class="brand-title">RescueMind <span>AI</span></div>'
+                    '<div class="brand-sub">Emergency coordination center</div></div></div>'
+                    '<div class="nav-label">NAVIGATION</div>', unsafe_allow_html=True)
+        page = st.radio("Navigation", [n for n, _ in NAV], label_visibility="collapsed",
+                        format_func=lambda n: f"{icons[n]}   {n}")
+        st.markdown('<div class="status-card"><div class="status-row"><span class="dot"></span>All systems online</div>'
+                    '<div class="status-row">🛡️ Human approval required</div>'
+                    '<div class="status-row">📡 Simulated emergency data</div></div>', unsafe_allow_html=True)
     return page
