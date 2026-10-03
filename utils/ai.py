@@ -117,11 +117,11 @@ def transcribe_audio(audio_bytes, filename):
     """Optional voice transcription agent using Groq Whisper."""
     client = get_groq_client(settings.groq_api_key)
     if client is None or not audio_bytes:
-        return {"status":"unavailable","text":"","confidence":0.0,"note":"Voice provider unavailable."}
-    import io
+        reason = "No audio data was received." if not audio_bytes else "GROQ_API_KEY is missing or invalid. Add it to .env or .streamlit/secrets.toml."
+        return {"status":"unavailable","text":"","confidence":0.0,"note":reason}
     try:
         result = client.audio.transcriptions.create(model=settings.groq_transcription_model, file=(filename or "report.webm", audio_bytes))
         text = getattr(result, "text", "") or ""
         return {"status":"success","text":text,"confidence":0.90 if text else 0.0,"provider":"Groq Whisper"}
     except Exception as exc:
-        return {"status":"error","text":"","confidence":0.0,"error":type(exc).__name__}
+        return {"status":"error","text":"","confidence":0.0,"error":type(exc).__name__,"note":str(exc)[:200]}
