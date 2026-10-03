@@ -14,6 +14,8 @@ from utils.models import Incident, Resource, AgentExecution
 from utils.seed import seed_database
 from utils.services import change_status, create_incident, propose_resource
 from utils.agents import orchestrate
+from utils.ai import transcribe_audio
+from utils.location_service import extract_location
 
 app = FastAPI(
     title="RescueMind AI API",
@@ -68,7 +70,7 @@ def _incident_dict(incident: Incident) -> dict:
     }
 
 
-def _process_report(db, description: str, category: str, location: Optional[str], image_name: Optional[str]):
+def _process_report(db, description: str, category: str, location: Optional[str], image_name: Optional[str], image_bytes: bytes | None = None):
     if len(description.strip()) < 10:
         raise HTTPException(status_code=422, detail="Description must contain at least 10 characters.")
 
@@ -79,7 +81,7 @@ def _process_report(db, description: str, category: str, location: Optional[str]
         location,
         image_name,
     )
-    result = orchestrate(db, incident, category)
+    result = orchestrate(db, incident, category, image_bytes=image_bytes, image_name=image_name)
     db.commit()
     db.refresh(incident)
     return incident, report, result
@@ -106,6 +108,7 @@ async def create_report(
             category,
             location,
             image.filename if image else None,
+            await image.read() if image else None,
         )
         return {
             "report_code": report.report_code,
@@ -147,6 +150,29 @@ def create_json_report(request: ReportRequest):
     except Exception as exc:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Report processing failed: {exc}") from exc
+    finally:
+        db.close()
+
+
+@app.post("/api/v1/reports/voice")
+async def create_voice_report(
+    audio: UploadFile = File(...),
+    category: str = Form("Auto Detect"),
+    location: Optional[str] = Form(None),
+):
+    """Transcribe citizen voice, then run the same agent workflow."""
+    audio_bytes = await audio.read()
+    transcription = transcribe_audio(audio_bytes, audio.filename)
+    text = transcription.get("text", "").strip()
+    if not text:
+        raise HTTPException(status_code=422, detail="Voice transcription did not produce usable text.")
+    db = SessionLocal()
+    try:
+        incident, report, result = _process_report(db, text, category, location, None)
+        db.commit(); db.refresh(incident)
+        return {"transcription": transcription, "report_code": report.report_code, "incident": _incident_dict(incident), "ai_result": result, "human_approval_required": True}
+    except Exception as exc:
+        db.rollback(); raise HTTPException(status_code=500, detail=f"Voice report processing failed: {exc}") from exc
     finally:
         db.close()
 
@@ -225,6 +251,14 @@ def update_incident_status(incident_id: int, request: StatusRequest):
         return {"incident": _incident_dict(incident)}
     finally:
         db.close()
+
+
+@app.get("/api/v1/location/geocode")
+def geocode_location(q: str):
+    """Resolve a human-readable location for map display; result remains unverified."""
+    if not q.strip():
+        raise HTTPException(status_code=422, detail="q is required")
+    return extract_location(q)
 
 
 @app.get("/api/v1/resources")
