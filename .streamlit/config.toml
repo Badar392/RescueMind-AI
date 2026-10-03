@@ -1,9 +1,9 @@
 [theme]
 base = "dark"
-primaryColor = "#6366f1"
-backgroundColor = "#070b14"
-secondaryBackgroundColor = "#0a0f1c"
-textColor = "#e7edf5"
+primaryColor = "#8b93ff"
+backgroundColor = "#142041"
+secondaryBackgroundColor = "#1e2d57"
+textColor = "#f4f7ff"
 font = "sans serif"
 baseFontSize = 15
 
@@ -11,4 +11,3 @@ baseFontSize = 15
 headless = true
 enableCORS = false
 enableXsrfProtection = true
-
