@@ -28,5 +28,9 @@ class Settings:
     )
     groq_api_key: str | None = get_setting("GROQ_API_KEY")
     groq_model: str = get_setting("GROQ_MODEL", "openai/gpt-oss-120b")
+    groq_vision_model: str = get_setting("GROQ_VISION_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
+    groq_transcription_model: str = get_setting("GROQ_TRANSCRIPTION_MODEL", "whisper-large-v3-turbo")
+    geocoding_enabled: bool = str(get_setting("GEOCODING_ENABLED", "true")).lower() == "true"
+    geocoding_user_agent: str = get_setting("GEOCODING_USER_AGENT", "RescueMind-AI/2.1")
 
 settings = Settings()
