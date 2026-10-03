@@ -3,8 +3,9 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from utils.database import SessionLocal
-from utils.models import Incident, Resource, AgentExecution, AuditLog
+from utils.models import Incident, Resource, AgentExecution, AuditLog, ResourceOptimizationRun
 from utils.resource_matcher import rank_resources
+from utils.resource_optimizer import optimize_resources
 from utils.response_planner import build_response_plan
 
 
@@ -38,6 +39,8 @@ def process_event(event: dict) -> None:
                 Incident.status.in_(["Pending", "Under Review", "Approved", "Assigned", "In Progress"])
             ).all()
             resources = db.query(Resource).all()
+            optimization = optimize_resources(incidents, resources, 3)
+            db.add(ResourceOptimizationRun(trigger=event_type, summary={"recommendations": len(optimization)}))
             for current in incidents:
                 if not current:
                     continue
@@ -55,6 +58,7 @@ def process_event(event: dict) -> None:
                     "severity": current.severity,
                     "severity_score": current.severity_score,
                     "top_resource_candidates": recommendations[:3],
+                    "optimized_resource_candidates": [x for x in optimization if x["incident_id"] == current.id][:3],
                     "response_plan": plan,
                     "alert": alert,
                     "automatic_dispatch": False,
