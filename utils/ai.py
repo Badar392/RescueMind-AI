@@ -94,3 +94,34 @@ Missing: {severity['missing_information']}
             "human_verification": True,
             "provider": "Fallback",
         }
+
+
+def analyze_image(image_bytes, filename, incident_description=""):
+    """Optional vision agent. Returns transparent fallback when no vision provider is configured."""
+    client = get_groq_client(settings.groq_api_key)
+    if client is None or not image_bytes:
+        return {"status":"unavailable","confidence":0.0,"findings":[],"note":"Vision provider unavailable; image metadata can still be retained for human review."}
+    import base64, json
+    mime = "image/jpeg" if str(filename).lower().endswith(('.jpg','.jpeg')) else "image/png"
+    data_url = f"data:{mime};base64,{base64.b64encode(image_bytes).decode('utf-8')}"
+    prompt = f"""Analyze this emergency-scene image for RescueMind AI. Do not identify people. Return JSON only with findings (array), hazards (array), possible_category, confidence (0-1), and uncertainty (array). Never claim the scene is verified and never recommend medical treatment. Report only visible evidence. Text report: {incident_description}"""
+    try:
+        response = client.chat.completions.create(model=settings.groq_vision_model, temperature=0.1, response_format={"type":"json_object"}, messages=[{"role":"user","content":[{"type":"text","text":prompt},{"type":"image_url","image_url":{"url":data_url}}]}])
+        data=json.loads(response.choices[0].message.content)
+        data["status"]="success"; data["provider"]="Groq Vision"
+        return data
+    except Exception as exc:
+        return {"status":"error","confidence":0.0,"findings":[],"uncertainty":[f"Vision analysis failed: {type(exc).__name__}"],"provider":"Fallback"}
+
+def transcribe_audio(audio_bytes, filename):
+    """Optional voice transcription agent using Groq Whisper."""
+    client = get_groq_client(settings.groq_api_key)
+    if client is None or not audio_bytes:
+        return {"status":"unavailable","text":"","confidence":0.0,"note":"Voice provider unavailable."}
+    import io
+    try:
+        result = client.audio.transcriptions.create(model=settings.groq_transcription_model, file=(filename or "report.webm", audio_bytes))
+        text = getattr(result, "text", "") or ""
+        return {"status":"success","text":text,"confidence":0.90 if text else 0.0,"provider":"Groq Whisper"}
+    except Exception as exc:
+        return {"status":"error","text":"","confidence":0.0,"error":type(exc).__name__}
