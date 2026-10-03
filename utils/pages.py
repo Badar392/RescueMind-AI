@@ -8,6 +8,7 @@ from utils.models import (
 from utils.services import (
     create_incident, change_status, propose_resource
 )
+from utils.event_bus import publish_event
 from utils.agents import orchestrate, resource_agent
 from utils.resource_optimizer import optimize_resources
 from utils.ai import transcribe_audio
@@ -158,6 +159,9 @@ def report_page(db):
 
         result = orchestrate(db, incident, category, image_bytes=image_bytes, image_name=image.name if image else None)
         db.commit()
+
+        # Streamlit reports must enter the same event-driven monitoring path as API reports.
+        publish_event("incident.created", incident.id, {"source": "streamlit_report"})
 
         st.success(
             f"Report **{report.report_code}** received. Incident **{incident.incident_code}** created."
@@ -346,6 +350,7 @@ def incidents_page(db):
                     note="Coordinator reviewed the incident.",
                 )
                 db.commit()
+                publish_event("incident.updated", selected.id, {"source": "coordinator_streamlit", "new_status": new_status})
                 st.success("Incident updated.")
                 st.rerun()
 
@@ -441,6 +446,7 @@ def resources_page(db):
                 selected_resource.status = new_status
                 db.add(AuditLog(action="resource_status_changed", actor="coordinator", entity_type="resource", entity_id=str(selected_resource.id), details={"old": old_status, "new": new_status}))
                 db.commit()
+                publish_event("resource.updated", None, {"resource_id": selected_resource.id, "old_status": old_status, "new_status": new_status, "source": "coordinator_streamlit"})
                 st.success("Resource status updated; optimization will be recalculated on the next monitoring event.")
                 st.rerun()
 
