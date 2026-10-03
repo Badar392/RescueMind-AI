@@ -90,42 +90,13 @@ div[data-testid="stMetricValue"]{font-weight:800;letter-spacing:-.03em}
 .stButton>button,.stFormSubmitButton>button{border-radius:10px;font-weight:700;border:1px solid var(--line);transition:.15s}
 .stButton>button[kind="primary"],.stFormSubmitButton>button{background:linear-gradient(90deg,#ff5d73,#8b93ff);border:0;color:#fff}
 .stButton>button:hover,.stFormSubmitButton>button:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(99,102,241,.3)}
-/* Input fields: always-visible fill + border (not only on focus) */
-[data-baseweb="input"],[data-baseweb="textarea"],[data-baseweb="select"]>div,[data-baseweb="base-input"]{
- background:#0f1a3d!important;border:1.5px solid rgba(165,180,252,.55)!important;border-radius:10px!important;transition:.15s}
-[data-baseweb="input"]:hover,[data-baseweb="textarea"]:hover,[data-baseweb="select"]>div:hover{border-color:#a5b4fc!important}
-[data-baseweb="input"]:focus-within,[data-baseweb="textarea"]:focus-within,[data-baseweb="select"]>div:focus-within{
- border-color:#8b93ff!important;box-shadow:0 0 0 3px rgba(139,147,255,.28)!important}
-[data-baseweb="input"] input,[data-baseweb="textarea"] textarea,[data-baseweb="base-input"],[data-baseweb="base-input"] input,
-[data-baseweb="select"] input,[data-baseweb="select"] div{background:transparent!important;color:#f4f7ff!important}
-[data-baseweb="input"] input::placeholder,[data-baseweb="textarea"] textarea::placeholder{color:#8fa0c8!important;opacity:1}
-[data-baseweb="select"] svg,[data-testid="stNumberInput"] button svg{fill:#c7d2fe!important}
-[data-testid="stNumberInput"] button{background:#16244d!important;border-color:rgba(165,180,252,.4)!important}
-[data-testid="stFileUploaderDropzone"]{background:#0f1a3d!important;border:1.5px dashed rgba(165,180,252,.6)!important;border-radius:12px}
-[data-testid="stFileUploaderDropzone"] *{color:#dbe4ff!important}
-[data-testid="stFileUploaderDropzone"] button{background:#263767!important;border:1px solid rgba(165,180,252,.5)!important}
-[data-testid="stAudioInput"]{background:#0f1a3d!important;border:1.5px solid rgba(165,180,252,.55)!important;border-radius:12px}
-[data-testid="stWidgetLabel"] p,[data-testid="stWidgetLabel"] label{color:#e8edff!important;font-weight:600;font-size:.86rem}
-[data-baseweb="checkbox"]>span:first-child{border:1.5px solid #a5b4fc!important;background:#0f1a3d!important}
-/* Robust pass: every input wrapper by test-id, stronger contrast, no double borders */
-[data-testid="stTextInputRootElement"],[data-testid="stTextAreaRootElement"],[data-testid="stNumberInputContainer"],
-[data-testid="stSelectbox"] [data-baseweb="select"]>div,[data-testid="stMultiSelect"] [data-baseweb="select"]>div,
-[data-testid="stDateInput"] [data-baseweb="input"],[data-testid="stTimeInput"] [data-baseweb="input"],
-div[data-baseweb="select"]>div:first-child,div[data-baseweb="input"],div[data-baseweb="textarea"]{
- background:#0a1230!important;border:2px solid rgba(199,210,254,.75)!important;border-radius:10px!important;box-shadow:none!important}
-[data-testid="stTextInputRootElement"]:focus-within,[data-testid="stTextAreaRootElement"]:focus-within,
-[data-testid="stNumberInputContainer"]:focus-within,div[data-baseweb="select"]>div:first-child:focus-within,
-div[data-baseweb="input"]:focus-within,div[data-baseweb="textarea"]:focus-within{
- border-color:#ff8aa0!important;box-shadow:0 0 0 3px rgba(255,138,160,.25)!important}
-div[data-baseweb="base-input"]{border:none!important;box-shadow:none!important;background:transparent!important}
-[data-testid="stTextInput"] input,[data-testid="stTextArea"] textarea,[data-testid="stNumberInput"] input,
-[data-testid="stSelectbox"] input,[data-testid="stSelectbox"] [data-baseweb="select"] div{
- color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;background:transparent!important}
-[data-testid="stFileUploaderDropzone"],[data-testid="stAudioInput"]{background:#0a1230!important;border:2px dashed rgba(199,210,254,.75)!important}
-[data-testid="stAudioInput"]{border-style:solid!important}
-[data-baseweb="popover"] ul{background:#1a2a55!important}
-[data-baseweb="popover"] li:hover{background:#2f4285!important}
-[data-testid="stForm"]{border:1px solid var(--line);border-radius:16px;background:var(--card);padding:22px}
+/* Fields: fill + border + radius come from .streamlit/config.toml (secondaryBackgroundColor, showWidgetBorder, borderColor, baseRadius) so they work for every widget incl. dropdowns */
+[data-testid="stWidgetLabel"] p{color:#eef2ff!important;font-weight:600;font-size:.86rem}
+[data-testid="stForm"]{background:linear-gradient(160deg,#18274f,#111b3d)!important;border:1px solid var(--line);border-radius:18px;padding:24px;box-shadow:0 14px 34px rgba(6,10,32,.40)}
+[data-testid="stTextInput"] input,[data-testid="stTextArea"] textarea,[data-testid="stNumberInput"] input{color:#fff!important}
+[data-testid="stTextInput"] input::placeholder,[data-testid="stTextArea"] textarea::placeholder{color:#b9c5ee!important;opacity:.85}
+[data-testid="stFileUploaderDropzone"]{background:rgba(139,147,255,.16)!important;border:1.5px dashed #9aa3ff!important;border-radius:14px}
+[data-testid="stAudioInput"]{border:1.5px solid #8b93ff!important;border-radius:14px}
 [data-testid="stExpander"]{border:1px solid var(--line);border-radius:12px;background:var(--card)}
 [data-testid="stTabs"] [role="tablist"]{gap:4px;border-bottom:1px solid var(--line)}
 [data-testid="stTabs"] button{font-weight:600;border-radius:8px 8px 0 0}
