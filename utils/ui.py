@@ -85,9 +85,9 @@ html,body,.stApp,[class*="css"]{font-family:'Inter',sans-serif}
 /* Streamlit widgets */
 div[data-testid="stMetric"]{padding:16px;border-radius:16px;border:1px solid var(--line);
  background:linear-gradient(160deg,var(--card2),var(--card))}
-div[data-testid="stMetricLabel"] p{color:var(--mut);font-size:.75rem;text-transform:uppercase;letter-spacing:.06em}
-div[data-testid="stMetricValue"]{font-weight:700;letter-spacing:-.02em;font-size:1.45rem!important;line-height:1.3}
-[data-testid="stMetricValue"] *{font-size:1.45rem!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;line-height:1.3}
+[data-testid="stMetricLabel"],[data-testid="stMetricLabel"] *{color:var(--mut)!important;font-size:.78rem!important;font-weight:600}
+[data-testid="stMetricValue"]{font-weight:700;letter-spacing:-.02em;line-height:1.3}
+[data-testid="stMetricValue"],[data-testid="stMetricValue"] *{font-size:1.4rem!important;font-weight:700!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;line-height:1.3!important;word-break:break-word}
 .panel h1,.panel h2,.panel h3{font-size:1.2rem!important;font-weight:700;letter-spacing:-.02em}
 .stButton>button,.stFormSubmitButton>button{border-radius:10px;font-weight:700;border:1px solid var(--line);transition:.15s}
 .stButton>button[kind="primary"],.stFormSubmitButton>button{background:linear-gradient(90deg,#ff5d73,#8b93ff);border:0;color:#fff}
