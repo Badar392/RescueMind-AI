@@ -119,3 +119,15 @@ class AuditLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 Index("ix_incident_coordinates", Incident.latitude, Incident.longitude)
+
+class EventRecord(Base):
+    """Durable event envelope used by the v2.2 event-driven monitor."""
+    __tablename__ = "event_records"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(80), index=True)
+    incident_id: Mapped[int | None] = mapped_column(ForeignKey("incidents.id"), index=True)
+    status: Mapped[str] = mapped_column(String(30), default="queued", index=True)
+    payload: Mapped[dict | None] = mapped_column(JSON)
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
