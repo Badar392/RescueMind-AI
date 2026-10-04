@@ -3,7 +3,7 @@
 The API is the service boundary between citizen/report clients and the
 AI orchestration + database layer. Streamlit remains the human approval UI.
 """
-from typing import Optional
+from typing import Optional, Literal
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
@@ -11,7 +11,7 @@ from sqlalchemy import desc
 from datetime import datetime, timezone
 
 from utils.database import SessionLocal, init_db
-from utils.models import Incident, Resource, AgentExecution
+from utils.models import Incident, Resource, AgentExecution, AuditLog
 from utils.seed import seed_database
 from utils.services import change_status, create_incident, propose_resource
 from utils.agents import orchestrate
@@ -36,11 +36,13 @@ def startup() -> None:
     start_worker(process_event)
 
 
+AllowedCategory = Literal["Auto Detect", "Flood", "Earthquake", "Fire", "Road Accident", "Medical Emergency", "Other"]
+
 class ReportRequest(BaseModel):
-    description: str = Field(min_length=10)
-    category: str = "Auto Detect"
-    location: Optional[str] = None
-    image_name: Optional[str] = None
+    description: str = Field(min_length=10, max_length=10000)
+    category: AllowedCategory = "Auto Detect"
+    location: Optional[str] = Field(default=None, max_length=255)
+    image_name: Optional[str] = Field(default=None, max_length=255)
 
 
 class StatusRequest(BaseModel):
@@ -77,8 +79,17 @@ def _incident_dict(incident: Incident) -> dict:
 
 
 def _process_report(db, description: str, category: str, location: Optional[str], image_name: Optional[str], image_bytes: bytes | None = None):
-    if len(description.strip()) < 10:
+    description = (description or "").strip()
+    if len(description) < 10:
         raise HTTPException(status_code=422, detail="Description must contain at least 10 characters.")
+    if len(description) > 10000:
+        raise HTTPException(status_code=422, detail="Description must not exceed 10,000 characters.")
+    if location is not None and len(location) > 255:
+        raise HTTPException(status_code=422, detail="Location must not exceed 255 characters.")
+    if category not in {"Auto Detect", "Flood", "Earthquake", "Fire", "Road Accident", "Medical Emergency", "Other"}:
+        raise HTTPException(status_code=422, detail="Invalid emergency category.")
+    if image_name and len(image_name) > 255:
+        raise HTTPException(status_code=422, detail="Image name is too long.")
 
     incident, report = create_incident(
         db,
@@ -185,10 +196,12 @@ async def create_voice_report(
 
 
 @app.get("/api/v1/incidents")
-def list_incidents():
+def list_incidents(limit: int = 100, offset: int = 0):
+    limit = max(1, min(limit, 500))
+    offset = max(0, offset)
     db = SessionLocal()
     try:
-        incidents = db.query(Incident).order_by(desc(Incident.id)).all()
+        incidents = db.query(Incident).order_by(desc(Incident.id)).offset(offset).limit(limit).all()
         return {"incidents": [_incident_dict(i) for i in incidents]}
     finally:
         db.close()
@@ -252,7 +265,11 @@ def update_incident_status(incident_id: int, request: StatusRequest):
         incident = db.get(Incident, incident_id)
         if not incident:
             raise HTTPException(status_code=404, detail="Incident not found.")
-        change_status(db, incident, request.status, actor=request.actor, note=request.note)
+        # Free-text actor values are not trusted as authenticated identities.
+        actor = "coordinator"
+        change_status(db, incident, request.status, actor=actor, note=request.note)
+        if request.reviewed:
+            incident.human_approved = True
         db.commit()
         db.refresh(incident)
         return {"incident": _incident_dict(incident)}
@@ -416,7 +433,11 @@ def create_resource_proposal(incident_id: int, request: ResourceProposalRequest)
             raise HTTPException(status_code=409, detail="Resource is not currently available.")
 
         rationale = request.rationale or f"{resource.resource_type} is relevant to the reported {incident.category.lower()} scenario."
-        propose_resource(db, incident.id, resource.id, rationale)
+        try:
+            propose_resource(db, incident.id, resource.id, rationale)
+        except ValueError as exc:
+            db.rollback()
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         db.commit()
         publish_event("resource.updated", incident.id, {"resource_id": resource.id, "change": "proposal_created"})
         return {"status": "Proposed", "incident_id": incident.id, "resource_id": resource.id, "rationale": rationale}
