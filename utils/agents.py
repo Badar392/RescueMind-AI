@@ -29,6 +29,21 @@ def _tokens(text):
     return set(re.findall(r"[a-z0-9]+", (text or "").lower()))
 
 
+def _has_term(text: str, term: str) -> bool:
+    """Match a keyword as a word/phrase, not as a substring of another word."""
+    return bool(re.search(r"(?<![a-z0-9])" + re.escape(term.lower()) + r"(?![a-z0-9])", text))
+
+
+def _has_negated_term(text: str, term: str) -> bool:
+    """Detect a simple negation near a matched emergency condition."""
+    if term.lower() in {"injury", "injured", "bleeding", "wounded"}:
+        return bool(re.search(
+            r"\b(?:no|not|without|nobody|never)\b[^,.]{0,30}\b(?:injur(?:y|ies|ed|ing)|bleeding|wounded)\b",
+            text,
+        ))
+    pattern = r"\b(?:no|not|without|nobody|never)\b[^,.]{0,30}\b" + re.escape(term.lower()) + r"\b"
+    return bool(re.search(pattern, text))
+
 def similarity(a, b):
     left, right = _tokens(a), _tokens(b)
     if not left or not right:
@@ -44,12 +59,16 @@ def intake_agent(description, selected_category):
     if category == "Auto Detect":
         scores = {}
         for name, words in CATEGORY_RULES.items():
-            hits = [word for word in words if word in text]
+            hits = [word for word in words if _has_term(text, word)]
+            # A leaking tap/pipe is not a flood unless the report also describes
+            # flooding, overflow, rising water, or a comparable emergency.
+            if name == "Flood" and not any(_has_term(text, w) for w in ("flood", "flooded", "overflow", "rising water", "water level")):
+                hits = [w for w in hits if w not in {"water"}]
             if hits:
                 scores[name] = len(hits)
         if scores:
             category = max(scores, key=scores.get)
-            evidence = [f"Matched category indicators: {', '.join([w for w in CATEGORY_RULES[category] if w in text][:4])}"]
+            evidence = [f"Matched category indicators: {', '.join([w for w in CATEGORY_RULES[category] if _has_term(text, w)][:4])}"]
         else:
             category = "Other"
     else:
@@ -58,7 +77,7 @@ def intake_agent(description, selected_category):
     missing = []
     if len(description.strip()) < 30:
         missing.append("More detailed incident description")
-    if not any(x in text for x in ["near ", "at ", "in ", "on ", "location", "road", "street"]):
+    if not any(_has_term(text, x) for x in ["near", "at", "in", "on", "location", "road", "street"]):
         missing.append("Location details")
 
     confidence = 0.90 if selected_category != "Auto Detect" else (0.82 if category != "Other" else 0.42)
@@ -90,7 +109,11 @@ def severity_agent(description, category):
         (["large fire", "spreading", "explosion", "gas leak"], 25, "Reported escalation/hazard"),
     ]
     for words, points, reason in rules:
-        if any(word in text for word in words):
+        matched = [word for word in words if _has_term(text, word)]
+        if matched:
+            # Do not count explicitly negated conditions such as "nobody injured".
+            if all(_has_negated_term(text, word) for word in matched):
+                continue
             score += points
             evidence.append(reason)
     if category in {"Fire", "Earthquake"}:
@@ -128,6 +151,9 @@ def duplicate_agent(description, incidents, location=None, category=None, thresh
             location_score = max(0.0, 1.0 - min(distance_km / 10.0, 1.0))
 
         combined = text_score * 0.65 + category_score * 0.15 + location_score * 0.20
+        # Identical wording in different cities should not become a duplicate.
+        if distance_km is not None and distance_km > 25:
+            continue
         if combined >= threshold:
             matches.append({
                 "incident_id": incident.id,
