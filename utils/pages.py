@@ -121,25 +121,19 @@ def report_page(db):
     if submitted:
         # Optional voice becomes an additional evidence channel. The user can still edit the text before submission.
         voice_text = ""
-        voice_note = ""
         if voice:
             try:
-                voice_bytes = voice.getvalue()
-                voice_result = transcribe_audio(voice_bytes, getattr(voice, "name", None) or "report.wav")
-                voice_text = (voice_result.get("text") or "").strip()
-                if voice_text:
-                    st.info(f"🎙 Voice transcribed: {voice_text}")
-                    description = voice_text if not description.strip() else f"{description.strip()}\n\nVoice evidence: {voice_text}"
-                else:
-                    voice_note = voice_result.get("note") or voice_result.get("error") or "No speech was detected in the recording."
+                voice_result = transcribe_audio(voice.getvalue(), getattr(voice, "name", "report.webm"))
+                voice_text = voice_result.get("text", "").strip()
+                if voice_text and not description.strip():
+                    description = voice_text
+                elif voice_text:
+                    description = f"{description.strip()}\n\nVoice evidence: {voice_text}"
             except Exception as exc:
-                voice_note = f"{type(exc).__name__}: {exc}"
-
-        if voice and not voice_text:
-            st.warning(f"Voice report could not be transcribed. {voice_note} Please type the description instead.")
+                st.warning(f"Voice transcription unavailable: {type(exc).__name__}")
 
         if len(description.strip()) < 10:
-            st.error("Please type a description (at least 10 characters). Voice transcription needs a valid GROQ_API_KEY.")
+            st.error("Please provide a more detailed description or a usable voice report.")
             return
 
         incident, report = create_incident(
@@ -211,11 +205,13 @@ def incidents_page(db):
         st.info("No incidents available.")
         return
 
-    selected = st.selectbox(
+    by_id = {i.id: i for i in incidents}
+    selected_id = st.selectbox(
         "Select incident",
-        incidents,
-        format_func=lambda x: f"{x.incident_code} — {x.category} — {x.severity}",
+        list(by_id),
+        format_func=lambda i: f"{by_id[i].incident_code} — {by_id[i].category} — {by_id[i].severity}",
     )
+    selected = db.get(Incident, selected_id)  # live session object so status edits persist
 
     st.markdown(
         f"""
@@ -389,6 +385,8 @@ def resources_page(db):
         "Track simulated rescue resources and review availability for coordinator decisions.",
     )
 
+    if st.session_state.get("resource_flash"):
+        st.success("Resource status updated — " + st.session_state.pop("resource_flash"))
     resources = db.query(Resource).order_by(Resource.id).all()
     available = sum(r.status == "Available" for r in resources)
     busy = len(resources) - available
@@ -432,18 +430,33 @@ def resources_page(db):
         hide_index=True,
     )
 
+    STATUS_OPTIONS = ["Available", "Busy", "Maintenance", "Offline"]
     with st.expander("↻ Update resource availability"):
         if resources:
-            selected_resource = st.selectbox("Resource", resources, format_func=lambda r: f"{r.resource_code} — {r.name}")
-            new_status = st.selectbox("New status", ["Available", "Busy", "Maintenance", "Offline"], index=["Available", "Busy", "Maintenance", "Offline"].index(selected_resource.status) if selected_resource.status in {"Available", "Busy", "Maintenance", "Offline"} else 0)
+            # NOTE: st.selectbox returns a detached copy of ORM objects, so edits to it are silently lost.
+            # Select by ID and re-fetch the row from the live DB session instead.
+            by_id = {r.id: r for r in resources}
+            resource_id = st.selectbox(
+                "Resource", list(by_id),
+                format_func=lambda i: f"{by_id[i].resource_code} — {by_id[i].name}  ({by_id[i].status})",
+            )
+            selected_resource = db.get(Resource, resource_id)
+            current = selected_resource.status if selected_resource.status in STATUS_OPTIONS else "Available"
+            new_status = st.selectbox(
+                "New status", STATUS_OPTIONS, index=STATUS_OPTIONS.index(current),
+                key=f"res_status_{resource_id}_{current}",
+            )
             if st.button("Save Resource Status", use_container_width=True):
-                old_status = selected_resource.status
-                selected_resource.status = new_status
-                db.add(AuditLog(action="resource_status_changed", actor="coordinator", entity_type="resource", entity_id=str(selected_resource.id), details={"old": old_status, "new": new_status}))
-                db.commit()
-                publish_event("resource.updated", None, {"resource_id": selected_resource.id, "old_status": old_status, "new_status": new_status, "source": "coordinator_streamlit"})
-                st.success("Resource status updated; optimization will be recalculated on the next monitoring event.")
-                st.rerun()
+                if new_status == current:
+                    st.info(f"{selected_resource.resource_code} is already {current}.")
+                else:
+                    old_status = selected_resource.status
+                    selected_resource.status = new_status
+                    db.add(AuditLog(action="resource_status_changed", actor="coordinator", entity_type="resource", entity_id=str(selected_resource.id), details={"old": old_status, "new": new_status}))
+                    db.commit()
+                    publish_event("resource.updated", None, {"resource_id": selected_resource.id, "old_status": old_status, "new_status": new_status, "source": "coordinator_streamlit"})
+                    st.session_state["resource_flash"] = f"{selected_resource.resource_code} changed: {old_status} → {new_status}"
+                    st.rerun()
 
     with st.expander("＋ Add simulated resource"):
         with st.form("add_resource"):
@@ -454,6 +467,7 @@ def resources_page(db):
             )
             capacity = st.number_input("Capacity", min_value=1, max_value=1000, value=1)
             location = st.text_input("Location")
+            initial_status = st.selectbox("Initial status", STATUS_OPTIONS)
             submit = st.form_submit_button("Add Resource", use_container_width=True)
 
         if submit:
@@ -467,49 +481,11 @@ def resources_page(db):
                     resource_type=resource_type,
                     capacity=capacity,
                     location=location,
-                    status="Available",
+                    status=initial_status,
                 ))
                 db.commit()
                 st.success("Resource added.")
                 st.rerun()
-
-
-def ai_activity_page(db):
-    page_hero(
-        "TRANSPARENCY / AI ACTIVITY",
-        "AI Agent Activity",
-        "Transparent execution history for the specialized RescueMind analysis agents.",
-    )
-
-    executions = (
-        db.query(AgentExecution)
-        .order_by(AgentExecution.id.desc())
-        .limit(100)
-        .all()
-    )
-
-    if not executions:
-        st.info("No agent executions have been recorded yet.")
-        return
-
-    success_count = sum(x.status == "success" for x in executions)
-    failure_count = len(executions) - success_count
-    a, b, c = st.columns(3, gap="small")
-    a.metric("Executions", len(executions))
-    b.metric("Successful", success_count)
-    c.metric("Other Status", failure_count)
-
-    st.markdown('<div class="section-title">EXECUTION LOG</div>', unsafe_allow_html=True)
-    for execution in executions:
-        status_class = "badge-green" if execution.status == "success" else "badge-orange"
-        with st.expander(
-            f"{execution.agent_name}  ·  {execution.status}  ·  {execution.duration_ms or 0} ms"
-        ):
-            st.markdown(
-                f'<span class="badge {status_class}">{execution.status}</span>',
-                unsafe_allow_html=True,
-            )
-            st.json(execution.output_json or {})
 
 
 def audit_page(db):
@@ -543,34 +519,54 @@ def audit_page(db):
     )
 
 
-def live_monitoring_page(db):
-    """Live event stream + continuous monitoring decisions for v2.2."""
-    from utils.models import EventRecord
-    from sqlalchemy import desc
-    page_hero(
-        "V2.2 / EVENT-DRIVEN OPERATIONS",
-        "Live Monitoring",
-        "Continuous incident monitoring, event-driven re-analysis, escalation signals, and auditable agent activity.",
-    )
-    events = db.query(EventRecord).order_by(desc(EventRecord.id)).limit(80).all()
-    queued = sum(e.status == "queued" for e in events)
-    completed = sum(e.status == "completed" for e in events)
-    failed = sum(e.status == "failed" for e in events)
-    a, b, c, d = st.columns(4)
-    a.metric("Stream events", len(events))
-    b.metric("Queued", queued)
-    c.metric("Completed", completed)
-    d.metric("Failed", failed)
+def _agent_activity_view(db):
+    executions = db.query(AgentExecution).order_by(AgentExecution.id.desc()).limit(100).all()
+    if not executions:
+        st.info("No agent executions have been recorded yet.")
+        return
+    st.markdown('<div class="section-title">AGENT EXECUTION LOG</div>', unsafe_allow_html=True)
+    st.caption("What each AI agent analysed and decided. Monitoring-agent runs are triggered by the events in the Event Stream tab.")
+    for execution in executions:
+        status_class = "badge-green" if execution.status == "success" else "badge-orange"
+        with st.expander(f"{execution.agent_name}  ·  {execution.status}  ·  {execution.duration_ms or 0} ms"):
+            st.markdown(f'<span class="badge {status_class}">{execution.status}</span>', unsafe_allow_html=True)
+            st.json(execution.output_json or {})
 
-    st.markdown('<div class="safe-notice"><b>v2.2 control rule:</b> events can trigger analysis and recommendations, but never autonomous field dispatch. A coordinator remains the approval authority.</div>', unsafe_allow_html=True)
+
+def _event_stream_view(db):
+    from utils.models import EventRecord
+    st.markdown('<div class="safe-notice"><b>Control rule:</b> events can trigger analysis and recommendations, but never autonomous field dispatch. A coordinator remains the approval authority.</div>', unsafe_allow_html=True)
     st.markdown('<div class="section-title">EVENT STREAM</div>', unsafe_allow_html=True)
+    events = db.query(EventRecord).order_by(desc(EventRecord.id)).limit(30).all()
     if not events:
         st.info("No events have been emitted yet. Submit an emergency report to start the stream.")
         return
-    for event in events[:30]:
+    for event in events:
         with st.expander(f"#{event.id} · {event.event_type} · {event.status} · incident {event.incident_id or 'system'}"):
-            st.json({
-                "payload": event.payload or {},
-                "error": event.error,
-                "created_at": str(event.created_at),
-            })
+            st.json({"payload": event.payload or {}, "error": event.error, "created_at": str(event.created_at)})
+
+
+def ai_monitoring_page(db):
+    """Single page for AI agent activity + live event monitoring (they are two views of one pipeline:
+    event -> monitoring handler -> agent execution)."""
+    from utils.models import EventRecord
+    page_hero(
+        "TRANSPARENCY / AI MONITORING",
+        "AI Monitoring Center",
+        "Live event stream and the AI agent executions it triggers, in one auditable view.",
+    )
+    executions = db.query(AgentExecution).order_by(AgentExecution.id.desc()).limit(100).all()
+    events = db.query(EventRecord).order_by(desc(EventRecord.id)).limit(80).all()
+    ok = sum(x.status == "success" for x in executions)
+    kpi_row([
+        ("Agent runs", len(executions), "✦", "blue", "Last 100 executions"),
+        ("Successful", ok, "✔", "green", f"{len(executions) - ok} other status"),
+        ("Stream events", len(events), "◉", "cyan", f"{sum(e.status == 'queued' for e in events)} queued"),
+        ("Failed events", sum(e.status == "failed" for e in events), "⚠", "red", "Needs attention"),
+    ])
+    st.write("")
+    tab_agents, tab_events = st.tabs(["🤖 Agent Activity", "📡 Live Event Stream"])
+    with tab_agents:
+        _agent_activity_view(db)
+    with tab_events:
+        _event_stream_view(db)
