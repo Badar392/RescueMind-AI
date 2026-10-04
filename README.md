@@ -1,4 +1,46 @@
-# RescueMind AI — Version 2.2
+# RescueMind AI — Version 2.3
+
+## Modern UI / UX (dashboard redesign)
+
+The Streamlit front end has a new design system and a rebuilt Command Center.
+
+### Highlights
+- Bright navy / indigo theme (high contrast, vivid accents) with Inter typography and an indigo / red accent gradient.
+- Sidebar with logo, icon navigation, active-page highlight and live system status card.
+- Gradient hero header on every page.
+- Command Center: five KPI cards, interactive dark incident map colored by severity,
+  severity donut, incidents-by-category and workflow-status charts, resource readiness bar.
+- Consistent styling for forms, tabs, expanders, tables, inputs and buttons.
+
+### UI files
+| File | Purpose |
+|---|---|
+| `utils/ui.py` | Theme/CSS, `page_hero`, `kpi_row`, `section`, `style_fig`, badges, sidebar navigation |
+| `utils/pages.py` | Page layouts (`dashboard_page` redesigned with KPI cards and Plotly charts) |
+| `.streamlit/config.toml` | Base theme colors and font size |
+
+### Changelog (latest)
+- **Fixed:** resource status updates (Available/Busy/Maintenance/Offline) and incident coordinator decisions were not
+  saved. `st.selectbox` returns a detached copy of ORM objects, so edits to it never reached the database. The pages now
+  select by ID and re-fetch the row from the live session (`db.get(...)`). Keep this pattern for any new edit forms.
+- **Added:** "Initial status" field when adding a resource; confirmation message after a status change.
+- **Merged:** *AI Activity* and *Live Monitoring* into one **AI Monitoring** page (Agent Activity tab + Live Event Stream tab).
+
+### UI developer notes
+- CSS is injected through `st.markdown(..., unsafe_allow_html=True)`. Streamlit's markdown parser
+  ends an HTML block at a blank line, so `inject_css()` strips blank lines first. Do not remove that step,
+  or the CSS will appear as text on the page.
+- Charts use Plotly (`plotly>=6`); the map uses `px.scatter_map` with the `carto-darkmatter` style (no API token needed).
+- Backend logic (agents, database, event bus, API) is unchanged.
+
+### Voice reports (troubleshooting)
+Voice transcription uses Groq Whisper and requires `GROQ_API_KEY` (in `.env` or `.streamlit/secrets.toml`).
+If it is missing or the call fails, the report page now shows the exact reason and asks you to type the
+description instead. Typed reports always work without any API key.
+
+---
+
+## Backend overview (v2.2)
 
 ## Event-Driven Incident Monitoring
 
