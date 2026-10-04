@@ -113,15 +113,60 @@ def analyze_image(image_bytes, filename, incident_description=""):
     except Exception as exc:
         return {"status":"error","confidence":0.0,"findings":[],"uncertainty":[f"Vision analysis failed: {type(exc).__name__}"],"provider":"Fallback"}
 
+def _friendly_voice_error(exc):
+    code = getattr(exc, "status_code", None)
+    text = str(exc)
+    if code == 403 or "Access denied" in text:
+        return "Groq blocked this network/region (HTTP 403). This is not an API-key problem; try another network or hosting region."
+    if code == 401:
+        return "GROQ_API_KEY was rejected (HTTP 401). Check the key."
+    if code == 429:
+        return "Groq rate limit reached (HTTP 429). Try again shortly."
+    return text[:200]
+
+
+def _transcribe_fallback(audio_bytes):
+    """Key-free fallback (Google Web Speech via SpeechRecognition). Works for WAV audio only."""
+    import io
+    import speech_recognition as sr
+    recognizer = sr.Recognizer()
+    with sr.AudioFile(io.BytesIO(audio_bytes)) as source:
+        audio = recognizer.record(source)
+    for lang in ("en-US", "ur-PK"):
+        try:
+            text = recognizer.recognize_google(audio, language=lang)
+            if text:
+                return text
+        except sr.UnknownValueError:
+            continue
+    return ""
+
+
 def transcribe_audio(audio_bytes, filename):
-    """Optional voice transcription agent using Groq Whisper."""
+    """Voice transcription: Groq Whisper first, then a key-free fallback if Groq is unavailable/blocked."""
+    if not audio_bytes:
+        return {"status": "unavailable", "text": "", "confidence": 0.0, "note": "No audio data was received."}
+    problem = ""
     client = get_groq_client(settings.groq_api_key)
-    if client is None or not audio_bytes:
-        reason = "No audio data was received." if not audio_bytes else "GROQ_API_KEY is missing or invalid. Add it to .env or .streamlit/secrets.toml."
-        return {"status":"unavailable","text":"","confidence":0.0,"note":reason}
-    try:
-        result = client.audio.transcriptions.create(model=settings.groq_transcription_model, file=(filename or "report.webm", audio_bytes))
-        text = getattr(result, "text", "") or ""
-        return {"status":"success","text":text,"confidence":0.90 if text else 0.0,"provider":"Groq Whisper"}
-    except Exception as exc:
-        return {"status":"error","text":"","confidence":0.0,"error":type(exc).__name__,"note":str(exc)[:200]}
+    if client is None:
+        problem = "GROQ_API_KEY is missing. Add it to .env or .streamlit/secrets.toml."
+    else:
+        try:
+            result = client.audio.transcriptions.create(model=settings.groq_transcription_model, file=(filename or "report.wav", audio_bytes))
+            text = getattr(result, "text", "") or ""
+            return {"status": "success", "text": text, "confidence": 0.90 if text else 0.0, "provider": "Groq Whisper"}
+        except Exception as exc:
+            problem = _friendly_voice_error(exc)
+    # Fallback path
+    if audio_bytes[:4] == b"RIFF":
+        try:
+            text = _transcribe_fallback(audio_bytes)
+            if text:
+                return {"status": "success", "text": text, "confidence": 0.75, "provider": "Google Web Speech (fallback)",
+                        "note": f"Primary provider unavailable: {problem}"}
+            problem += " Fallback heard no clear speech."
+        except Exception as exc:
+            problem += f" Fallback also failed ({type(exc).__name__})."
+    else:
+        problem += " (Fallback supports WAV recordings only.)"
+    return {"status": "error", "text": "", "confidence": 0.0, "error": "TranscriptionUnavailable", "note": problem}
