@@ -15,9 +15,9 @@ Built as a hackathon project, RescueMind AI combines **AI-powered incident analy
 **Team RescueMind AI**
 
 * **Muhammad Badar Maaz**
+* **Umaima Butt**
 * **Nadir Hussain**
 * **Sahar**
-* **Umaima Butt**
 * **Momina**
 
 ---
