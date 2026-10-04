@@ -12,11 +12,16 @@ connect_args = (
     else {}
 )
 
-engine = create_engine(
-    settings.database_url,
-    connect_args=connect_args,
-    pool_pre_ping=True,
-)
+engine_kwargs = {
+    "connect_args": connect_args,
+    "pool_pre_ping": True,
+}
+if settings.database_url.startswith("sqlite"):
+    # The API accepts concurrent reports; the default SQLAlchemy SQLite pool
+    # can exhaust at modest concurrency under TestClient/worker load.
+    engine_kwargs.update({"pool_size": 20, "max_overflow": 20, "pool_timeout": 30})
+
+engine = create_engine(settings.database_url, **engine_kwargs)
 
 SessionLocal = sessionmaker(
     bind=engine,
