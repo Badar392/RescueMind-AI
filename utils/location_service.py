@@ -6,16 +6,20 @@ OpenStreetMap Nominatim geocoder and are always marked unverified until a
 coordinator confirms them.
 """
 import re
-from functools import lru_cache
 import requests
 from utils.config import settings
+from functools import lru_cache
 
 COORDINATE_RE = re.compile(r"(?P<lat>-?\d{1,2}(?:\.\d+)?)\s*,\s*(?P<lon>-?\d{1,3}(?:\.\d+)?)")
 
+class _GeocodeTransientFailure(Exception):
+    pass
+
+
 @lru_cache(maxsize=128)
-def geocode_text(query: str):
+def _geocode_cached(query: str):
     if not settings.geocoding_enabled or not query:
-        return None
+        raise _GeocodeTransientFailure()
     try:
         response = requests.get(
             "https://nominatim.openstreetmap.org/search",
@@ -26,7 +30,7 @@ def geocode_text(query: str):
         response.raise_for_status()
         rows = response.json()
         if not rows:
-            return None
+            raise _GeocodeTransientFailure()
         row = rows[0]
         return {
             "latitude": float(row["lat"]),
@@ -34,8 +38,26 @@ def geocode_text(query: str):
             "display_name": row.get("display_name", query),
             "source": "OpenStreetMap Nominatim",
         }
+    except _GeocodeTransientFailure:
+        raise
     except Exception:
+        # Exceptions are deliberately not cached by functools.lru_cache.
+        raise _GeocodeTransientFailure()
+
+
+def geocode_text(query: str):
+    if not settings.geocoding_enabled or not query:
         return None
+    try:
+        return _geocode_cached(query)
+    except _GeocodeTransientFailure:
+        return None
+
+
+# Preserve the familiar cache-control API for callers/tests while ensuring
+# failed lookups never enter the cache.
+geocode_text.cache_clear = _geocode_cached.cache_clear
+geocode_text.cache_info = _geocode_cached.cache_info
 
 def extract_location(location: str | None) -> dict:
     raw = (location or "").strip()
