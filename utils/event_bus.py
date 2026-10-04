@@ -45,6 +45,19 @@ def start_worker(handler) -> None:
             return
         _HANDLER = handler
         _STOP.clear()
+        # Recover durable events left queued by a prior process crash.
+        db = SessionLocal()
+        try:
+            queued = db.query(EventRecord).filter(EventRecord.status == "queued").order_by(EventRecord.id.asc()).all()
+            for record in queued:
+                _QUEUE.put({
+                    "id": record.id,
+                    "event_type": record.event_type,
+                    "incident_id": record.incident_id,
+                    "payload": record.payload or {},
+                })
+        finally:
+            db.close()
         Thread(target=_worker, name="rescuemind-event-worker", daemon=True).start()
         _STARTED = True
 
