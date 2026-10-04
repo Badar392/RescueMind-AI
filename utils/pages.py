@@ -121,19 +121,25 @@ def report_page(db):
     if submitted:
         # Optional voice becomes an additional evidence channel. The user can still edit the text before submission.
         voice_text = ""
+        voice_note = ""
         if voice:
             try:
-                voice_result = transcribe_audio(voice.getvalue(), getattr(voice, "name", "report.webm"))
-                voice_text = voice_result.get("text", "").strip()
-                if voice_text and not description.strip():
-                    description = voice_text
-                elif voice_text:
-                    description = f"{description.strip()}\n\nVoice evidence: {voice_text}"
+                voice_bytes = voice.getvalue()
+                voice_result = transcribe_audio(voice_bytes, getattr(voice, "name", None) or "report.wav")
+                voice_text = (voice_result.get("text") or "").strip()
+                if voice_text:
+                    st.info(f"🎙 Voice transcribed: {voice_text}")
+                    description = voice_text if not description.strip() else f"{description.strip()}\n\nVoice evidence: {voice_text}"
+                else:
+                    voice_note = voice_result.get("note") or voice_result.get("error") or "No speech was detected in the recording."
             except Exception as exc:
-                st.warning(f"Voice transcription unavailable: {type(exc).__name__}")
+                voice_note = f"{type(exc).__name__}: {exc}"
+
+        if voice and not voice_text:
+            st.warning(f"Voice report could not be transcribed. {voice_note} Please type the description instead.")
 
         if len(description.strip()) < 10:
-            st.error("Please provide a more detailed description or a usable voice report.")
+            st.error("Please type a description (at least 10 characters). Voice transcription needs a valid GROQ_API_KEY.")
             return
 
         incident, report = create_incident(
@@ -547,7 +553,7 @@ def _event_stream_view(db):
 
 
 def ai_monitoring_page(db):
-    """Single page for AI agent activity + live event monitoring (they are two views of one pipeline:
+    """Single page for AI agent activity + live event monitoring (two views of one pipeline:
     event -> monitoring handler -> agent execution)."""
     from utils.models import EventRecord
     page_hero(
