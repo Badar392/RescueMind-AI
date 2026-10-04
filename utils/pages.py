@@ -1,3 +1,4 @@
+import html
 import pandas as pd
 import streamlit as st
 from sqlalchemy import desc
@@ -44,7 +45,7 @@ def dashboard_page(db):
             fig = px.scatter_map(pd.DataFrame(rows), lat="lat", lon="lon", color="Severity", hover_name="Incident",
                                  color_discrete_map=SEV_COLORS, zoom=9, map_style="carto-darkmatter")
             fig.update_traces(marker=dict(size=15))
-            st.plotly_chart(style_fig(fig, 400), use_container_width=True)
+            st.plotly_chart(style_fig(fig, 400), width="stretch")
         else:
             st.info("No coordinates available. RescueMind AI never invents coordinates.")
     with right:
@@ -55,7 +56,7 @@ def dashboard_page(db):
             st.markdown(
                 f'<div class="incident-card"><div style="display:flex;justify-content:space-between;align-items:center">'
                 f'<span class="incident-code">{i.incident_code}</span>{severity_badge(i.severity)}</div>'
-                f'<div class="incident-meta">{i.category} · {status_badge(i.status)}</div></div>', unsafe_allow_html=True)
+                f'<div class="incident-meta">{html.escape(i.category or "Other")} · {status_badge(i.status)}</div></div>', unsafe_allow_html=True)
 
     if incidents:
         c1, c2, c3 = st.columns([1, 1, 1], gap="large")
@@ -63,17 +64,17 @@ def dashboard_page(db):
         with c1:
             section("SEVERITY MIX")
             fig = px.pie(df, names="Severity", hole=.6, color="Severity", color_discrete_map=SEV_COLORS)
-            st.plotly_chart(style_fig(fig, 260), use_container_width=True)
+            st.plotly_chart(style_fig(fig, 260), width="stretch")
         with c2:
             section("BY CATEGORY")
             d = df["Category"].value_counts().reset_index()
             fig = px.bar(d, x="count", y="Category", orientation="h", color_discrete_sequence=["#6366f1"])
-            st.plotly_chart(style_fig(fig, 260), use_container_width=True)
+            st.plotly_chart(style_fig(fig, 260), width="stretch")
         with c3:
             section("WORKFLOW STATUS")
             d = df["Status"].value_counts().reset_index()
             fig = px.bar(d, x="Status", y="count", color_discrete_sequence=["#06b6d4"])
-            st.plotly_chart(style_fig(fig, 260), use_container_width=True)
+            st.plotly_chart(style_fig(fig, 260), width="stretch")
 
     a, b = st.columns(2, gap="large")
     with a:
@@ -116,7 +117,7 @@ def report_page(db):
         with c2:
             image = st.file_uploader("Optional evidence image", type=["png", "jpg", "jpeg"])
         voice = st.audio_input("Optional voice report") if hasattr(st, "audio_input") else st.file_uploader("Optional voice report", type=["wav", "mp3", "m4a", "webm"])
-        submitted = st.form_submit_button("🚨 Submit Emergency Report", use_container_width=True)
+        submitted = st.form_submit_button("🚨 Submit Emergency Report", width="stretch")
 
     if submitted:
         # Optional voice becomes an additional evidence channel. The user can still edit the text before submission.
@@ -194,7 +195,7 @@ def report_page(db):
 
         if result["duplicates"]:
             st.markdown('<div class="section-title">POTENTIAL DUPLICATE REPORTS</div>', unsafe_allow_html=True)
-            st.dataframe(pd.DataFrame(result["duplicates"]), use_container_width=True, hide_index=True)
+            st.dataframe(pd.DataFrame(result["duplicates"]), width="stretch", hide_index=True)
         else:
             st.success("No potential duplicate found above the similarity threshold.")
 
@@ -225,8 +226,8 @@ def incidents_page(db):
             <div class="mini-label">SELECTED INCIDENT</div>
             <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;margin-top:5px;">
                 <div>
-                    <div style="font-size:1.1rem;font-weight:800;color:#f8fafc;">{selected.incident_code}</div>
-                    <div style="font-size:.76rem;color:#8194aa;margin-top:3px;">{selected.category} · {selected.location_text or 'Location not verified'}</div>
+                    <div style="font-size:1.1rem;font-weight:800;color:#f8fafc;">{html.escape(selected.incident_code)}</div>
+                    <div style="font-size:.76rem;color:#8194aa;margin-top:3px;">{html.escape(selected.category or "Other")} · {html.escape(selected.location_text or "Location not verified")}</div>
                 </div>
                 <div>{severity_badge(selected.severity)} &nbsp; {status_badge(selected.status)}</div>
             </div>
@@ -295,9 +296,9 @@ def incidents_page(db):
                     st.markdown(
                         f"""
                         <div class="incident-card">
-                            <div class="incident-code">{rec['name']}</div>
-                            <div class="incident-meta">{rec['type']} · {rec['resource_code']}</div>
-                            <div style="color:#a9b8c9;font-size:.78rem;margin-top:7px;">{rec['reason']}</div>
+                            <div class="incident-code">{html.escape(str(rec['name']))}</div>
+                            <div class="incident-meta">{html.escape(str(rec['type']))} · {html.escape(str(rec['resource_code']))}</div>
+                            <div style="color:#a9b8c9;font-size:.78rem;margin-top:7px;">{html.escape(str(rec['reason']))}</div>
                             <div style="color:#8fd3ff;font-size:.75rem;margin-top:6px;">Match score: {rec.get('match_score', '—')} · Distance: {distance_text}</div>
                         </div>
                         """,
@@ -308,7 +309,7 @@ def incidents_page(db):
                     if st.button(
                         f"Propose {rec['resource_code']}",
                         key=f"resource_{selected.id}_{rec['resource_id']}",
-                        use_container_width=True,
+                        width="stretch",
                     ):
                         propose_resource(
                             db,
@@ -335,7 +336,7 @@ def incidents_page(db):
             key=f"status_{selected.id}",
         )
 
-        if st.button("Save Coordinator Decision", type="primary", use_container_width=True):
+        if st.button("Save Coordinator Decision", type="primary", width="stretch"):
             if new_status in {"Approved", "Assigned", "In Progress", "Resolved"} and not approved:
                 st.error("Review confirmation is required.")
             else:
@@ -413,7 +414,7 @@ def resources_page(db):
                 "Type": x["resource_type"], "Distance (km)": round(x["distance_km"], 1) if x["distance_km"] is not None else None,
                 "Optimized Score": x["optimized_score"], "Competition Penalty": x["competition_penalty"],
                 "Decision": "Human review"
-            } for x in recommendations]), use_container_width=True, hide_index=True)
+            } for x in recommendations]), width="stretch", hide_index=True)
         else:
             st.info("No feasible resource recommendations for active incidents.")
     else:
@@ -432,7 +433,7 @@ def resources_page(db):
             }
             for r in resources
         ]),
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
 
@@ -452,7 +453,7 @@ def resources_page(db):
                 "New status", STATUS_OPTIONS, index=STATUS_OPTIONS.index(current),
                 key=f"res_status_{resource_id}_{current}",
             )
-            if st.button("Save Resource Status", use_container_width=True):
+            if st.button("Save Resource Status", width="stretch"):
                 if new_status == current:
                     st.info(f"{selected_resource.resource_code} is already {current}.")
                 else:
@@ -474,7 +475,7 @@ def resources_page(db):
             capacity = st.number_input("Capacity", min_value=1, max_value=1000, value=1)
             location = st.text_input("Location")
             initial_status = st.selectbox("Initial status", STATUS_OPTIONS)
-            submit = st.form_submit_button("Add Resource", use_container_width=True)
+            submit = st.form_submit_button("Add Resource", width="stretch")
 
         if submit:
             if not name or not location:
@@ -520,7 +521,7 @@ def audit_page(db):
             }
             for x in logs
         ]),
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
 
