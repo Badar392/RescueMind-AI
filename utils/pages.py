@@ -139,7 +139,7 @@ def report_page(db):
             st.warning(f"Voice report could not be transcribed. {voice_note} Please type the description instead.")
 
         if len(description.strip()) < 10:
-            st.error("Please type a description (at least 10 characters). Voice transcription needs a valid GROQ_API_KEY.")
+            st.error("Please type a description (at least 10 characters), or record again once voice transcription is available.")
             return
 
         incident, report = create_incident(
